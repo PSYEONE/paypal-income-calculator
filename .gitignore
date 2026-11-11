@@ -1,0 +1,7 @@
+# Real PayPal exports. Never commit.
+private/
+
+node_modules/
+dist/
+*.local
+.DS_Store
