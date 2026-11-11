@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, detectDateOrder, parseDate, taxYearLabel, taxYearOf, taxYearRange } from '../src/core/dates';
-import { formatMoney, mulDivRound, parseAmount } from '../src/core/money';
+import { formatMoney, formatRate, mulDivRound, parseAmount } from '../src/core/money';
 import { UK } from '../src/settings';
 
 describe('money', () => {
@@ -31,6 +31,11 @@ describe('money', () => {
     expect(mulDivRound(-1, 1, 2)).toBe(-1);
     expect(mulDivRound(1, 1, 3)).toBe(0);
     expect(mulDivRound(9007199254740991, 100, 100)).toBe(9007199254740991);
+  });
+
+  it('shows an exchange rate at a glance', () => {
+    expect(formatRate(0.7628, 'USD', 'GBP', 'en-GB')).toBe('US$1 = £0.7628');
+    expect(formatRate(0.005, 'JPY', 'GBP', 'en-GB')).toBe('JP¥1 = £0.0050');
   });
 
   it('formats for display', () => {

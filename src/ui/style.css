@@ -1,117 +1,448 @@
-:root {
-  color-scheme: light dark;
-  --bg: #fafaf8;
-  --text: #1c1c1a;
-  --muted: #5f5f58;
-  --line: #d9d9d2;
-  --panel: #ffffff;
-  --accent: #0b5cad;
-  --warn-bg: #fff4d6;
-  --warn-text: #6b4a00;
-  --error-text: #a11212;
-}
+/* Light counterpart of interviewr's look: Geist type (no monospace), square corners, hairline
+   borders, flat tinted surfaces and the same blue for filled buttons. */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17181a;
-    --text: #ececea;
-    --muted: #a5a59d;
-    --line: #3a3b3e;
-    --panel: #202124;
-    --accent: #7db7f5;
-    --warn-bg: #3d3210;
-    --warn-text: #f3d98a;
-    --error-text: #ff9a9a;
-  }
+:root {
+  color-scheme: light;
+  --bg: #fafafa;
+  --solid: #ffffff;
+  --fg: #111113;
+  --dim: #66666e;
+  --line: rgb(0 0 0 / 0.1);
+  --line-strong: rgb(0 0 0 / 0.22);
+  --surface: rgb(0 0 0 / 0.03);
+  --surface-hover: rgb(0 0 0 / 0.06);
+  /* interviewr's blue fills buttons; a deeper blue of the same hue is used for
+     text, borders and focus rings so it stays readable on white. */
+  --accent-fill: #89b4fa;
+  --accent: #1e66f5;
+  --accent-tint: rgb(30 102 245 / 0.07);
+  --warn: #df8e1d;
+  --warn-text: #7a4d00;
+  --warn-tint: rgb(223 142 29 / 0.1);
+  --bad: #d20f39;
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Text is sized like GOV.UK's: 19px on a computer, a little smaller on a
+   phone. Everything else is measured in rem, so it scales with this. Using a
+   percentage keeps it in step with the reader's own browser text size. */
+html {
+  font-size: 118.75%;
+}
+
+@media (max-width: 40rem) {
+  html {
+    font-size: 106.25%;
+  }
+}
+
 body {
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
-  max-width: 54rem;
+  margin: 0;
   background: var(--bg);
-  color: var(--text);
-  font: 1rem/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--fg);
+  font: 1rem/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.7rem;
+/* The wizard: one framed panel, like an app window. The title and the
+   buttons stay put; only the middle scrolls. */
+html,
+body {
+  height: 100%;
 }
 
-h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.25rem;
+body {
+  display: flex;
+  flex-direction: column;
 }
 
-h3 {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 1.05rem;
+.shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  max-width: 54rem;
+  margin: 0 auto;
+  background: var(--solid);
 }
 
-header p {
-  margin: 0.25rem 0;
+@media (min-width: 68rem) {
+  .shell {
+    margin: 2rem auto;
+    border: 1px solid var(--line);
+  }
 }
 
-.privacy {
-  color: var(--muted);
+.wizard {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
-section {
-  margin-top: 1.5rem;
-  padding: 1.25rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.wiz-head {
+  flex: none;
+  padding: 1.25rem 2rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.wiz-head[hidden] {
+  display: none;
+}
+
+.wiz-head h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+
+/* Progress through the steps, drawn along the bottom edge of the title. */
+.bar-track {
+  height: 3px;
+  margin: 0 -2rem -1px;
+  background: var(--line);
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent-fill);
+  transition: width 200ms;
+}
+
+.wiz-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.wiz-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Footer buttons never change size from page to page: the button on the
+   right is one fixed width whatever it says, and Back is a smaller fixed width. */
+.wiz-foot > button {
+  width: 10.5rem;
+  padding: 0.5rem;
+  font-size: 1rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.wiz-foot > button.back {
+  width: 6.5rem;
+}
+
+.spacer {
+  flex: 1;
 }
 
 footer {
-  margin-top: 2rem;
-  color: var(--muted);
-  font-size: 0.9rem;
+  flex: none;
+  padding: 0.5rem 2rem;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.8125rem;
 }
 
+/* Welcome page */
+.hero {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding-top: 2rem;
+}
+
+.hero h1 {
+  margin: 0 0 2rem;
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.hero p,
+.hero ul {
+  color: var(--dim);
+}
+
+.hero strong {
+  color: var(--fg);
+}
+
+.hero ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+/* Text */
+p {
+  margin: 0 0 0.75rem;
+}
+
+.lead {
+  color: var(--dim);
+}
+
+h2 {
+  margin: 2rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* "How to get your files" steps: a numbered list with square number badges. */
+.guide {
+  margin: 1rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: guide;
+}
+
+.guide li {
+  position: relative;
+  padding: 0.75rem 0 0.75rem 2.75rem;
+  border-top: 1px solid var(--line);
+  counter-increment: guide;
+}
+
+.guide li::before {
+  content: counter(guide);
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--line-strong);
+  color: var(--dim);
+  font-size: 0.875rem;
+  line-height: 1.65rem;
+  text-align: center;
+}
+
+.guide p {
+  margin: 0.125rem 0 0;
+  color: var(--dim);
+}
+
+.guide a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Screenshots of PayPal: framed, and never wider than the page. */
+.guide img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-top: 0.75rem;
+  border: 1px solid var(--line);
+}
+
+.callout ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.callout p {
+  margin: 0.375rem 0 0;
+}
+
+/* Buttons: square, bordered, quiet. */
+button,
+.btn {
+  display: inline-block;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms, transform 150ms;
+}
+
+button:hover,
+.btn:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+/* A button that cannot be used yet is dimmed and does not react. */
+button:disabled,
+button:disabled:hover {
+  border-color: var(--line);
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.4;
+  transform: none;
+}
+
+button.primary:disabled,
+button.primary:disabled:hover {
+  border-color: transparent;
+  background: var(--accent-fill);
+}
+
+/* Two-click remove, as in interviewr: the first click turns the button red
+   and asks for confirmation, the second click does it. */
+button.armed,
+button.armed:hover {
+  border-color: var(--bad);
+  background: rgb(210 15 57 / 0.1);
+  color: var(--bad);
+}
+
+/* Both labels share one grid cell, so swapping them never resizes the button. */
+.swap {
+  display: grid;
+  justify-items: center;
+}
+
+.swap > * {
+  grid-area: 1 / 1;
+}
+
+.swap > [aria-hidden] {
+  visibility: hidden;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.primary,
+.drop:hover .primary {
+  padding: 0.5rem 1rem;
+  border-color: transparent;
+  background: var(--accent-fill);
+  color: #000;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 1px 8px rgb(137 180 250 / 0.45);
+}
+
+/* File picker: a dashed box that is one big label for the hidden input. */
 .drop {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
   align-items: center;
-  padding: 1.5rem 1rem;
-  border: 2px dashed var(--line);
-  border-radius: 10px;
+  padding: 2rem 1rem;
+  border: 1px dashed var(--line-strong);
   text-align: center;
   cursor: pointer;
+  transition: background 150ms, border-color 150ms;
 }
 
+.drop:hover,
 .drop.over,
 .drop:focus-within {
   border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.drop:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.drop span:not(.btn) {
+  color: var(--dim);
+  font-size: 0.875rem;
 }
 
 .drop input {
-  margin-top: 0.5rem;
-  max-width: 100%;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 
+/* Loaded files */
 .files {
-  margin: 0.75rem 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .file {
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--line);
-  overflow-wrap: anywhere;
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.file.bad {
+  border-color: rgb(210 15 57 / 0.4);
+  background: rgb(210 15 57 / 0.04);
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* The name and its details take the spare width; the button keeps its place. */
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row button {
+  flex: none;
 }
 
 .file p,
 .file details {
-  margin: 0.25rem 0 0;
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
+}
+
+.file details ul {
+  margin: 0.375rem 0 0;
+  padding-left: 1.2rem;
+}
+
+/* Tables */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
 }
 
 table {
@@ -121,7 +452,7 @@ table {
 
 th,
 td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   border-top: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -129,13 +460,17 @@ td {
 
 thead th {
   border-top: none;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 600;
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 tfoot th {
-  border-top: 2px solid var(--line);
+  border-top: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-weight: 600;
 }
 
 .num {
@@ -143,32 +478,185 @@ tfoot th {
   font-variant-numeric: tabular-nums;
 }
 
-td:first-child:has(input) {
-  width: 6.5rem;
+/* The explanation under a figure reads as prose, not as a number. */
+.num .small {
+  max-width: 19rem;
+  margin: 0.25rem 0 0 auto;
+  line-height: 1.4;
+}
+
+/* Warnings inside a figure column are sentences, so they match the notes. */
+.num .warn {
+  font-size: 0.875rem;
+}
+
+/* Narrow screens scroll a table sideways rather than squash it. */
+.table-wrap table {
+  min-width: 30rem;
+}
+
+td.tick {
+  width: 1%;
+  padding-right: 0;
+  white-space: nowrap;
+}
+
+td label {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* The whole row is the button: it dims under the pointer and a click ticks it. */
+tr.pick {
+  cursor: pointer;
+}
+
+tr.pick td {
+  transition: background 120ms;
+}
+
+tr.pick:hover td {
+  background: var(--surface-hover);
+}
+
+tr.pick.selected:hover td {
+  background: rgb(30 102 245 / 0.13);
+}
+
+tr.pick:hover input[type='checkbox'] {
+  border-color: var(--accent);
+}
+
+/* A ticked payer is marked the way interviewr marks a selected card. */
+tr.selected td {
+  background: var(--accent-tint);
+}
+
+tr.selected td:first-child {
+  box-shadow: inset 2px 0 var(--accent);
 }
 
 input[type='checkbox'] {
-  width: 1.2rem;
-  height: 1.2rem;
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.15rem 0 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--solid);
+  cursor: pointer;
 }
 
+input[type='checkbox']:hover {
+  border-color: var(--accent);
+}
+
+input[type='checkbox']:checked {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+}
+
+input[type='checkbox']:checked::after {
+  content: '';
+  width: 0.55rem;
+  height: 0.3rem;
+  border-left: 2px solid #000;
+  border-bottom: 2px solid #000;
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* One tax year */
+.year {
+  margin-top: 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+
+.year h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+/* A plain note under a part-covered year: information, not a warning. */
+.year-note {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.year h3 .tag {
+  align-self: center;
+  font-weight: 400;
+}
+
+/* Fixed column widths so every tax year lines up with the next. */
+.year table {
+  min-width: 46rem;
+  table-layout: fixed;
+}
+
+.year thead th:nth-child(1) {
+  width: 9%;
+}
+
+.year thead th:nth-child(2) {
+  width: 17%;
+}
+
+.year thead th:nth-child(3) {
+  width: 10%;
+}
+
+.year thead th:nth-child(4),
+.year thead th:nth-child(5) {
+  width: 32%;
+}
+
+/* Small text, badges and callouts */
 .small {
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: normal;
+  color: var(--dim);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .note {
-  color: var(--muted);
-  font-size: 0.9rem;
+  margin-top: 0.75rem;
+  color: var(--dim);
+  font-size: 0.875rem;
 }
 
 .tag {
-  padding: 0.05rem 0.4rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
+  display: inline-block;
+  font-weight: 400;
+  vertical-align: 0.1em;
+  padding: 0 0.375rem;
+  border: 1px solid var(--line-strong);
+  color: var(--dim);
   font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.callout {
+  margin: 1rem 0 0;
+  padding: 0.625rem 0.75rem;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-tint);
+  color: var(--fg);
+  font-size: 0.875rem;
 }
 
 .warn {
@@ -177,13 +665,14 @@ input[type='checkbox'] {
 
 .warn.box {
   margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--warn-bg);
-  border-radius: 8px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid rgb(223 142 29 / 0.45);
+  background: var(--warn-tint);
+  font-size: 0.875rem;
 }
 
 .warn.box ul {
-  margin: 0.4rem 0;
+  margin: 0.375rem 0;
   padding-left: 1.2rem;
 }
 
@@ -192,22 +681,65 @@ input[type='checkbox'] {
 }
 
 .error {
-  color: var(--error-text);
+  color: var(--bad);
 }
 
-button.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 0.15);
 }
 
 @media (max-width: 40rem) {
-  section {
-    padding: 0.9rem;
-    overflow-x: auto;
+  .wiz-head {
+    padding: 1rem 1rem 0;
+  }
+
+  .bar-track {
+    margin-inline: -1rem;
+  }
+
+  .wiz-body {
+    padding: 1rem 1rem 1.5rem;
+  }
+
+  .wiz-foot {
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+
+  /* On a phone the two buttons split the width evenly. */
+  .wiz-foot {
+    flex-wrap: wrap;
+  }
+
+  .wiz-foot > button {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  .wiz-foot > button.back {
+    flex: 0 0 6rem;
+  }
+
+  .wiz-foot > .spacer {
+    display: none;
+  }
+
+  .wiz-foot > .small {
+    flex-basis: 100%;
+    order: -1;
+  }
+
+  footer {
+    padding-inline: 1rem;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
   }
 }

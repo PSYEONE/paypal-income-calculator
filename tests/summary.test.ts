@@ -168,14 +168,14 @@ describe('coverage', () => {
     expect(fileRange('Download.csv', [])).toBeNull();
   });
 
-  it('warns about tax years that are only partly covered', () => {
-    const { years, approximate } = checkCoverage([{ start: '2024-01-31', end: '2026-07-27', source: 'filename' }], UK);
+  it('tells apart a late start, an early stop and a tax year still running', () => {
+    const { years, approximate } = checkCoverage([{ start: '2024-01-31', end: '2026-07-27', source: 'filename' }], UK, '2026-11-11');
     expect(approximate).toBe(false);
     expect(years).toEqual([
-      { taxYear: 2023, label: '2023-24', complete: false, gaps: [{ start: '2023-04-06', end: '2024-01-30' }] },
-      { taxYear: 2024, label: '2024-25', complete: true, gaps: [] },
-      { taxYear: 2025, label: '2025-26', complete: true, gaps: [] },
-      { taxYear: 2026, label: '2026-27', complete: false, gaps: [{ start: '2026-07-28', end: '2027-04-05' }] },
+      { taxYear: 2023, label: '2023-24', complete: false, gaps: [{ start: '2023-04-06', end: '2024-01-30', kind: 'before' }], inProgress: false },
+      { taxYear: 2024, label: '2024-25', complete: true, gaps: [], inProgress: false },
+      { taxYear: 2025, label: '2025-26', complete: true, gaps: [], inProgress: false },
+      { taxYear: 2026, label: '2026-27', complete: false, gaps: [{ start: '2026-07-28', end: '2027-04-05', kind: 'after' }], inProgress: true },
     ]);
   });
 
@@ -187,7 +187,7 @@ describe('coverage', () => {
       ],
       UK,
     );
-    expect(touching.years).toEqual([{ taxYear: 2024, label: '2024-25', complete: true, gaps: [] }]);
+    expect(touching.years).toEqual([{ taxYear: 2024, label: '2024-25', complete: true, gaps: [], inProgress: false }]);
 
     const holed = checkCoverage(
       [
@@ -197,6 +197,6 @@ describe('coverage', () => {
       UK,
     );
     expect(holed.approximate).toBe(true);
-    expect(holed.years[0].gaps).toEqual([{ start: '2024-09-01', end: '2024-09-30' }]);
+    expect(holed.years[0].gaps).toEqual([{ start: '2024-09-01', end: '2024-09-30', kind: 'between' }]);
   });
 });

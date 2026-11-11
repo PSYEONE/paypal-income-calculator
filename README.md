@@ -55,14 +55,14 @@ Each payment is valued at the exchange rate HMRC publishes for the month it arri
 - No fees and no accounts.
 - HMRC's yearly average rates are not used, only the monthly ones.
 - UK only. Country rules (tax year start, home currency, date order) are in `src/settings.ts`.
-- Part-year warnings use the dates in PayPal's file name when present. Otherwise they use the first and last transaction, which can show a gap that is really just a quiet spell.
+- A tax year the files only partly cover gets a plain "part year" or "so far" note saying where the count starts or stops. Only a gap between two files is shown as a warning. The dates come from PayPal's file name when present; otherwise from the first and last transaction, which can mistake a quiet spell for a gap.
 
 ## Layout of the code
 
 - `src/settings.ts`: country rules.
 - `src/data/`: HMRC's rates. `scripts/`: the script that refreshes them.
 - `src/core/`: reading files and doing the sums. Plain functions, no browser code.
-- `src/ui/`: the page.
+- `src/ui/`: the page, a step-by-step wizard. The "how to get your files from PayPal" steps are in `src/ui/guide.ts`.
 - `tests/`: tests, with made-up sample exports in `tests/fixtures/`.
 
 ## Real data

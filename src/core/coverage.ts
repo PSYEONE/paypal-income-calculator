@@ -36,12 +36,26 @@ export function fileRange(fileName: string, txns: Txn[]): FileRange | null {
   return first && last ? { start: first, end: last, source: 'rows' } : null;
 }
 
+/**
+ * Why part of a tax year is not covered:
+ * 'before'  - it is earlier than anything in the files (often just when the person started)
+ * 'after'   - it is later than anything in the files (often just when they exported)
+ * 'between' - it is a hole between two files, which usually means a file is missing
+ */
+export type GapKind = 'before' | 'after' | 'between';
+
+export interface Gap extends DateRange {
+  kind: GapKind;
+}
+
 export interface YearCoverage {
   taxYear: number;
   label: string;
   complete: boolean;
   /** Parts of the tax year no file covers. */
-  gaps: DateRange[];
+  gaps: Gap[];
+  /** True when the tax year had not ended on the day given as "today". */
+  inProgress: boolean;
 }
 
 export interface Coverage {
@@ -50,8 +64,12 @@ export interface Coverage {
   approximate: boolean;
 }
 
-/** For every tax year the files touch, says whether all of it is covered. */
-export function checkCoverage(ranges: FileRange[], s: CountrySettings): Coverage {
+/**
+ * For every tax year the files touch, says whether all of it is covered.
+ * `today` ("YYYY-MM-DD") is used to tell a tax year that is still running
+ * from one that is over.
+ */
+export function checkCoverage(ranges: FileRange[], s: CountrySettings, today?: string): Coverage {
   if (ranges.length === 0) return { years: [], approximate: false };
 
   const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
@@ -70,15 +88,19 @@ export function checkCoverage(ranges: FileRange[], s: CountrySettings): Coverage
   const lastYear = taxYearOf(joined[joined.length - 1].end, s);
   for (let taxYear = firstYear; taxYear <= lastYear; taxYear++) {
     const year = taxYearRange(taxYear, s);
-    const gaps: DateRange[] = [];
+    const gaps: Gap[] = [];
+    const firstDay = joined[0].start;
+    const lastDay = joined[joined.length - 1].end;
+    const addGap = (start: string, end: string) =>
+      gaps.push({ start, end, kind: end < firstDay ? 'before' : start > lastDay ? 'after' : 'between' });
     let cursor = year.start;
     for (const range of joined) {
       if (range.end < cursor || range.start > year.end) continue;
-      if (range.start > cursor) gaps.push({ start: cursor, end: addDays(range.start, -1) });
+      if (range.start > cursor) addGap(cursor, addDays(range.start, -1));
       cursor = addDays(range.end, 1);
     }
-    if (cursor <= year.end) gaps.push({ start: cursor, end: year.end });
-    years.push({ taxYear, label: taxYearLabel(taxYear, s), complete: gaps.length === 0, gaps });
+    if (cursor <= year.end) addGap(cursor, year.end);
+    years.push({ taxYear, label: taxYearLabel(taxYear, s), complete: gaps.length === 0, gaps, inProgress: today !== undefined && today <= year.end });
   }
   return { years, approximate: ranges.some((r) => r.source === 'rows') };
 }

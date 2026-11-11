@@ -50,6 +50,17 @@ export function formatMoney(minor: number, currency: string, locale: string): st
   }
 }
 
+/** "US$1 = £0.7628": an exchange rate at a glance. For display only. */
+export function formatRate(rate: number, foreign: string, home: string, locale: string): string {
+  try {
+    const one = new Intl.NumberFormat(locale, { style: 'currency', currency: foreign, maximumFractionDigits: 0 }).format(1);
+    const worth = new Intl.NumberFormat(locale, { style: 'currency', currency: home, minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(rate);
+    return `${one} = ${worth}`;
+  } catch {
+    return `1 ${foreign} = ${rate.toFixed(4)} ${home}`;
+  }
+}
+
 /** How many units of `home` one unit of `foreign` bought. For display only. */
 export function displayRate(foreignMinor: number, foreign: string, homeMinor: number, home: string): number {
   return (homeMinor / 10 ** minorDigits(home)) / (foreignMinor / 10 ** minorDigits(foreign));

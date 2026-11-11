@@ -12,6 +12,7 @@
     "update-rates": "node scripts/update-hmrc-rates.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
     "papaparse": "^5.7.1"
   },
   "devDependencies": {
