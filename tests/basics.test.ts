@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, detectDateOrder, parseDate, taxYearLabel, taxYearOf, taxYearRange } from '../src/core/dates';
-import { formatMoney, formatRate, mulDivRound, parseAmount } from '../src/core/money';
+import { addDays, detectDateOrder, parseDate } from '../src/core/dates';
+import { detectDecimalMark, formatMoney, formatRate, mulDivRound, parseAmount } from '../src/core/money';
+import { periodOf, periodsTouching, yearLabel, yearOf, yearRange } from '../src/core/periods';
 import { UK } from '../src/settings';
 
 describe('money', () => {
@@ -23,6 +24,21 @@ describe('money', () => {
     expect(parseAmount('abc', 'GBP')).toBeNull();
     expect(parseAmount('1.2.3', 'GBP')).toBeNull();
     expect(parseAmount('1.005', 'GBP')).toBeNull();
+  });
+
+  it('reads amounts written with a decimal comma', () => {
+    expect(parseAmount('1.357,42', 'EUR', ',')).toBe(135742);
+    expect(parseAmount('-5,00', 'EUR', ',')).toBe(-500);
+    expect(parseAmount('1 234,56', 'EUR', ',')).toBe(123456);
+    expect(parseAmount('1.500', 'JPY', ',')).toBe(1500);
+    expect(parseAmount('1,005', 'EUR', ',')).toBeNull();
+  });
+
+  it('works out which decimal mark a file uses', () => {
+    expect(detectDecimalMark([{ text: '1,357.42', currency: 'USD' }])).toBe('.');
+    expect(detectDecimalMark([{ text: '1.357,42', currency: 'EUR' }, { text: '1.500', currency: 'JPY' }])).toBe(',');
+    expect(detectDecimalMark([])).toBe('.');
+    expect(() => detectDecimalMark([{ text: '5.00', currency: 'USD' }, { text: '5,00', currency: 'EUR' }])).toThrow();
   });
 
   it('multiplies and divides with whole-number rounding', () => {
@@ -68,12 +84,29 @@ describe('dates', () => {
   });
 
   it('puts 5 April and 6 April in different UK tax years', () => {
-    expect(taxYearOf('2024-04-05', UK)).toBe(2023);
-    expect(taxYearOf('2024-04-06', UK)).toBe(2024);
-    expect(taxYearOf('2025-01-01', UK)).toBe(2024);
-    expect(taxYearLabel(2024, UK)).toBe('2024-25');
-    expect(taxYearLabel(1999, UK)).toBe('1999-00');
-    expect(taxYearRange(2024, UK)).toEqual({ start: '2024-04-06', end: '2025-04-05' });
+    const tax = UK.taxYearStart;
+    expect(yearOf('2024-04-05', tax)).toBe(2023);
+    expect(yearOf('2024-04-06', tax)).toBe(2024);
+    expect(yearOf('2025-01-01', tax)).toBe(2024);
+    expect(yearLabel(2024, tax)).toBe('2024-25');
+    expect(yearLabel(1999, tax)).toBe('1999-00');
+    expect(yearRange(2024, tax)).toEqual({ start: '2024-04-06', end: '2025-04-05' });
+  });
+
+  it('does calendar years too', () => {
+    const jan = { month: 1, day: 1 };
+    expect(yearOf('2024-12-31', jan)).toBe(2024);
+    expect(yearLabel(2024, jan)).toBe('2024');
+    expect(yearRange(2024, jan)).toEqual({ start: '2024-01-01', end: '2024-12-31' });
+  });
+
+  it('puts dates inside picked dates in one period, and the rest in none', () => {
+    const rule = { kind: 'range' as const, start: '2024-03-01', end: '2024-08-31' };
+    expect(periodOf('2024-03-01', rule)).toEqual({ key: 'range', label: 'Your dates', start: '2024-03-01', end: '2024-08-31' });
+    expect(periodOf('2024-08-31', rule)?.key).toBe('range');
+    expect(periodOf('2024-02-29', rule)).toBeNull();
+    expect(periodOf('2024-09-01', rule)).toBeNull();
+    expect(periodsTouching('2020-01-01', '2020-02-01', rule).map((p) => p.key)).toEqual(['range']);
   });
 
   it('steps across month ends', () => {

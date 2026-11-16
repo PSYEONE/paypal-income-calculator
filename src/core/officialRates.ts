@@ -4,6 +4,8 @@ import { minorDigits, mulDivRound } from './money';
 export interface RateTable {
   /** Who publishes them, for labels. e.g. "HMRC" */
   name: string;
+  /** The currency the rates convert into, e.g. "GBP". */
+  base: string;
   /** First and last month held, as "YYYY-MM". */
   from: string;
   to: string;

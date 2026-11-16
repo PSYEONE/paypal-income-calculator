@@ -2,7 +2,7 @@ import Papa from 'papaparse';
 import type { CountrySettings } from '../settings';
 import { detectDateOrder, parseDate } from './dates';
 import { detectLayout } from './layouts';
-import { parseAmount } from './money';
+import { detectDecimalMark, parseAmount, type DecimalMark } from './money';
 import type { ParseResult, RowError, Txn } from './types';
 
 /** Reads the text of one PayPal CSV export. Never throws; problems come back in the result. */
@@ -22,6 +22,13 @@ export function parseCsv(text: string, fileName: string, s: CountrySettings): Pa
   let order;
   try {
     order = detectDateOrder(body.map((row) => row[col.date] ?? ''), s.defaultDateOrder);
+  } catch (e) {
+    return fail(`${(e as Error).message} Nothing was counted from this file.`);
+  }
+
+  let mark: DecimalMark;
+  try {
+    mark = detectDecimalMark(body.map((row) => ({ text: row[col.gross] ?? '', currency: (row[col.currency] ?? '').trim().toUpperCase() })));
   } catch (e) {
     return fail(`${(e as Error).message} Nothing was counted from this file.`);
   }
@@ -59,7 +66,7 @@ export function parseCsv(text: string, fileName: string, s: CountrySettings): Pa
       rowErrors.push({ row: rowNumber, message: `The date "${cell(col.date)}" could not be read.` });
       return;
     }
-    const gross = parseAmount(cell(col.gross), currency);
+    const gross = parseAmount(cell(col.gross), currency, mark);
     if (gross === null || currency === '') {
       rowErrors.push({ row: rowNumber, message: `The amount "${cell(col.gross)}" ${currency} could not be read.` });
       return;

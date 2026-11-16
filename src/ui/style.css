@@ -602,10 +602,19 @@ input[type='checkbox']:focus-visible {
   font-weight: 400;
 }
 
-/* Fixed column widths so every tax year lines up with the next. */
+/* Fixed column widths so every year lines up with the next. The table has
+   3, 4 or 5 columns depending on whether anything needs converting. */
 .year table {
   min-width: 46rem;
   table-layout: fixed;
+}
+
+.year table.cols-4 {
+  min-width: 34rem;
+}
+
+.year table.cols-3 {
+  min-width: 0;
 }
 
 .year thead th:nth-child(1) {
@@ -623,6 +632,86 @@ input[type='checkbox']:focus-visible {
 .year thead th:nth-child(4),
 .year thead th:nth-child(5) {
   width: 32%;
+}
+
+.year .cols-4 thead th:nth-child(1) {
+  width: 13%;
+}
+
+.year .cols-4 thead th:nth-child(2) {
+  width: 24%;
+}
+
+.year .cols-4 thead th:nth-child(3) {
+  width: 15%;
+}
+
+.year .cols-4 thead th:nth-child(4) {
+  width: 48%;
+}
+
+.year .cols-3 thead th:nth-child(1) {
+  width: 25%;
+}
+
+.year .cols-3 thead th:nth-child(2) {
+  width: 45%;
+}
+
+.year .cols-3 thead th:nth-child(3) {
+  width: 30%;
+}
+
+/* "Totals for" and "Show in" at the top of the results pages. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.field select,
+.field input {
+  min-height: 2.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--solid);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.field select {
+  padding-right: 2rem;
+  appearance: none;
+  /* A small down arrow, drawn inline so the page needs nothing from outside. */
+  background: var(--solid) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2366666e' stroke-width='1.6'/%3E%3C/svg%3E")
+    no-repeat right 0.625rem center;
+  cursor: pointer;
+}
+
+.field select:hover,
+.field input:hover {
+  border-color: var(--accent);
+}
+
+.field select:focus-visible,
+.field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Small text, badges and callouts */
@@ -741,5 +830,15 @@ input[type='checkbox']:focus-visible {
 
   .hero h1 {
     font-size: 2rem;
+  }
+
+  /* On a phone each choice takes the full width, except the two dates, which share a row. */
+  .field {
+    flex: 1 1 100%;
+  }
+
+  .field:has(input[type='date']) {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }

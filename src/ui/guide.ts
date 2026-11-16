@@ -40,7 +40,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     title: 'Pick CSV and your dates',
     detail:
-      'Set File format to CSV. Under Date range, choose dates that cover the whole tax year you want. A UK tax year runs from 6 April to 5 April, and one report can cover more than one year.',
+      'Set File format to CSV. Under Date range, choose dates that cover everything you want to add up, such as a whole tax year (in the UK, 6 April to 5 April). One report can cover several years, and you can narrow the dates down later in this tool.',
     image: { src: formatAndDates, alt: 'The report form, with File format set to CSV and the Date range box outlined.', width: 793, height: 269 },
   },
   {

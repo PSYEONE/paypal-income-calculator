@@ -63,6 +63,8 @@ export function detectLayout(header: string[]): LayoutMatch {
     error:
       'This file is not in a PayPal layout this tool can read. ' +
       `It is missing these columns: ${(fewestMissing ?? []).join(', ')}. ` +
-      'PayPal has more than one kind of CSV export, and only one is supported so far. Nothing was counted from this file.',
+      'PayPal has more than one kind of CSV export, and only one is supported so far. ' +
+      'If your PayPal account is set to a language other than English, the column names will be different, and those files are not supported yet. ' +
+      'Nothing was counted from this file.',
   };
 }

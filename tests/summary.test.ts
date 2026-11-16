@@ -3,16 +3,17 @@ import { checkCoverage, fileRange } from '../src/core/coverage';
 import { mergeFiles } from '../src/core/merge';
 import { buildPayers } from '../src/core/payers';
 import { summarise } from '../src/core/summary';
-import { UK } from '../src/settings';
+import { defaultReport, UK } from '../src/settings';
 import { loadFixture, txn } from './helpers';
 
+const report = defaultReport(UK);
 const merged = mergeFiles([loadFixture('sample-a.csv'), loadFixture('sample-b.csv')]);
 const lists = buildPayers(merged.txns);
 const allPayers = new Set(lists.payers.map((p) => p.key));
 const keyOf = (label: string) => [...lists.payers, ...lists.unknown].find((p) => p.label === label)!.key;
 
 describe('summarise: earnings', () => {
-  const { years, conversionsLeftOut } = summarise(merged.txns, allPayers, UK);
+  const { periods: years, conversionsLeftOut } = summarise(merged.txns, allPayers, report);
   const year = (label: string) => years.find((y) => y.label === label)!;
 
   it('splits by UK tax year', () => {
@@ -52,8 +53,8 @@ describe('summarise: earnings', () => {
   });
 
   it('counts only ticked payers', () => {
-    const only = summarise(merged.txns, new Set([keyOf('Sam Fakename')]), UK);
-    expect(only.years.map((y) => [y.label, y.earnings.map((e) => [e.currency, e.earned])])).toEqual([
+    const only = summarise(merged.txns, new Set([keyOf('Sam Fakename')]), report);
+    expect(only.periods.map((y) => [y.label, y.earnings.map((e) => [e.currency, e.earned])])).toEqual([
       ['2023-24', [['GBP', 5000]]],
       ['2024-25', [['GBP', 12000]]],
       ['2025-26', [['GBP', 6000]]],
@@ -61,27 +62,27 @@ describe('summarise: earnings', () => {
   });
 
   it('counts an unknown type once the user ticks it', () => {
-    const withMystery = summarise(merged.txns, new Set([keyOf('Fake Platform Inc'), keyOf('Odd Co')]), UK);
-    const usd = withMystery.years.find((y) => y.label === '2024-25')!.earnings[0];
+    const withMystery = summarise(merged.txns, new Set([keyOf('Fake Platform Inc'), keyOf('Odd Co')]), report);
+    const usd = withMystery.periods.find((y) => y.label === '2024-25')!.earnings[0];
     expect(usd).toMatchObject({ currency: 'USD', earned: 212000, count: 4 });
   });
 
   it('never counts deposits, refunds, holds or conversions as earnings', () => {
     const everything = new Set([...lists.payers, ...lists.unknown].map((p) => p.key));
-    const total = summarise(merged.txns, everything, UK).years.flatMap((y) => y.earnings).reduce((sum, e) => sum + e.count, 0);
+    const total = summarise(merged.txns, everything, report).periods.flatMap((y) => y.earnings).reduce((sum, e) => sum + e.count, 0);
     expect(total).toBe(11 + 2); // 11 payments from payers, 2 unknown
   });
 });
 
 describe('summarise: published rates', () => {
   // Made-up rates: units of foreign currency per £1.
-  const fake = { name: 'TEST', from: '2024-05', to: '2024-07', rates: { USD: { '2024-05': '1.25', '2024-06': '1.6', '2024-07': '2' }, JPY: { '2024-05': '200' } } };
-  const s = { ...UK, officialRates: fake };
+  const fake = { name: 'TEST', base: 'GBP', from: '2024-05', to: '2024-07', rates: { USD: { '2024-05': '1.25', '2024-06': '1.6', '2024-07': '2' }, JPY: { '2024-05': '200' } } };
+  const s = { ...report, officialRates: fake };
   const pay = (currency: string, gross: number, date: string) => txn({ description: 'Mass Pay Payment', currency, gross, date, email: 'p@example.com' });
   const ticked = new Set(['payer|email:p@example.com']);
 
   it('values each payment at the rate for the month it arrived', () => {
-    const { years } = summarise([pay('USD', 100000, '2024-05-03'), pay('USD', 50000, '2024-05-20'), pay('USD', 80000, '2024-06-01'), pay('GBP', 1000, '2024-06-02')], ticked, s);
+    const { periods: years } = summarise([pay('USD', 100000, '2024-05-03'), pay('USD', 50000, '2024-05-20'), pay('USD', 80000, '2024-06-01'), pay('GBP', 1000, '2024-06-02')], ticked, s);
     // $1,500 / 1.25 = £1,200 and $800 / 1.6 = £500
     expect(years[0].earnings).toMatchObject([
       { currency: 'GBP', officialValue: 1000 },
@@ -91,12 +92,12 @@ describe('summarise: published rates', () => {
   });
 
   it('allows for currencies with no pence', () => {
-    const { years } = summarise([pay('JPY', 30000, '2024-05-03')], ticked, s); // ¥30,000 / 200 = £150
+    const { periods: years } = summarise([pay('JPY', 30000, '2024-05-03')], ticked, s); // ¥30,000 / 200 = £150
     expect(years[0].earnings[0].officialValue).toBe(15000);
   });
 
   it('gives no figure, and names the month, when a rate is missing', () => {
-    const { years } = summarise([pay('USD', 100000, '2024-07-03'), pay('USD', 100000, '2024-08-03'), pay('EUR', 5000, '2024-05-03')], ticked, s);
+    const { periods: years } = summarise([pay('USD', 100000, '2024-07-03'), pay('USD', 100000, '2024-08-03'), pay('EUR', 5000, '2024-05-03')], ticked, s);
     expect(years[0].earnings).toMatchObject([
       { currency: 'EUR', officialValue: null, officialMissingMonths: ['2024-05'] },
       { currency: 'USD', officialValue: null, officialMissingMonths: ['2024-08'] },
@@ -105,14 +106,14 @@ describe('summarise: published rates', () => {
   });
 
   it('uses the payment month even for 1 to 5 April, which belong to the earlier tax year', () => {
-    const real = summarise([pay('USD', 127070, '2025-01-15')], ticked, UK); // HMRC January 2025: 1.2707
-    expect(real.years[0].earnings[0].officialValue).toBe(100000);
+    const real = summarise([pay('USD', 127070, '2025-01-15')], ticked, report); // HMRC January 2025: 1.2707
+    expect(real.periods[0].earnings[0].officialValue).toBe(100000);
   });
 });
 
 describe('summarise: withdrawals', () => {
   it('totals withdrawals per tax year, minus reversals, even with nothing ticked', () => {
-    const { years } = summarise(merged.txns, new Set(), UK);
+    const { periods: years } = summarise(merged.txns, new Set(), report);
     expect(years.map((y) => [y.label, y.withdrawals])).toEqual([
       ['2024-25', [{ currency: 'GBP', amount: 119000, withdrawals: 3, reversals: 1 }]],
       ['2025-26', [{ currency: 'GBP', amount: 23100, withdrawals: 1, reversals: 0 }]],
@@ -127,7 +128,7 @@ describe('summarise: conversions', () => {
       txn({ description: 'User Initiated Currency Conversion', currency: 'USD', gross: -10000, txnId: 'A', refTxnId: 'B' }),
       txn({ description: 'User Initiated Currency Conversion', currency: 'GBP', gross: 8000, txnId: 'B', refTxnId: 'A' }),
     ];
-    const { years } = summarise(txns, new Set(['payer|email:p@example.com']), UK);
+    const { periods: years } = summarise(txns, new Set(['payer|email:p@example.com']), report);
     expect(years[0].earnings[0].homeValue).toBe(8000);
   });
 
@@ -141,13 +142,13 @@ describe('summarise: conversions', () => {
       conv('EUR', -10000, 'W2'),
       conv('GBP', 8500, 'W2'),
     ];
-    const { years } = summarise(txns, new Set(['payer|email:p@example.com']), UK);
+    const { periods: years } = summarise(txns, new Set(['payer|email:p@example.com']), report);
     expect(years[0].earnings.map((e) => [e.currency, e.homeValue])).toEqual([['EUR', 8500], ['USD', 8000]]);
   });
 
   it('leaves out, and counts, a conversion it cannot tie to one currency', () => {
     const txns = [txn({ description: 'General Currency Conversion', currency: 'USD', gross: -10000, refTxnId: 'W9' })];
-    expect(summarise(txns, new Set(), UK).conversionsLeftOut).toBe(1);
+    expect(summarise(txns, new Set(), report).conversionsLeftOut).toBe(1);
   });
 });
 
@@ -169,13 +170,13 @@ describe('coverage', () => {
   });
 
   it('tells apart a late start, an early stop and a tax year still running', () => {
-    const { years, approximate } = checkCoverage([{ start: '2024-01-31', end: '2026-07-27', source: 'filename' }], UK, '2026-11-11');
+    const { periods, approximate } = checkCoverage([{ start: '2024-01-31', end: '2026-07-27', source: 'filename' }], report.period, '2026-11-11');
     expect(approximate).toBe(false);
-    expect(years).toEqual([
-      { taxYear: 2023, label: '2023-24', complete: false, gaps: [{ start: '2023-04-06', end: '2024-01-30', kind: 'before' }], inProgress: false },
-      { taxYear: 2024, label: '2024-25', complete: true, gaps: [], inProgress: false },
-      { taxYear: 2025, label: '2025-26', complete: true, gaps: [], inProgress: false },
-      { taxYear: 2026, label: '2026-27', complete: false, gaps: [{ start: '2026-07-28', end: '2027-04-05', kind: 'after' }], inProgress: true },
+    expect(periods.map(({ label, complete, gaps, inProgress }) => ({ label, complete, gaps, inProgress }))).toEqual([
+      { label: '2023-24', complete: false, gaps: [{ start: '2023-04-06', end: '2024-01-30', kind: 'before' }], inProgress: false },
+      { label: '2024-25', complete: true, gaps: [], inProgress: false },
+      { label: '2025-26', complete: true, gaps: [], inProgress: false },
+      { label: '2026-27', complete: false, gaps: [{ start: '2026-07-28', end: '2027-04-05', kind: 'after' }], inProgress: true },
     ]);
   });
 
@@ -185,18 +186,18 @@ describe('coverage', () => {
         { start: '2024-10-01', end: '2025-04-05', source: 'filename' },
         { start: '2024-04-06', end: '2024-09-30', source: 'filename' },
       ],
-      UK,
+      report.period,
     );
-    expect(touching.years).toEqual([{ taxYear: 2024, label: '2024-25', complete: true, gaps: [], inProgress: false }]);
+    expect(touching.periods).toMatchObject([{ key: '2024', label: '2024-25', complete: true, gaps: [], inProgress: false }]);
 
     const holed = checkCoverage(
       [
         { start: '2024-04-06', end: '2024-08-31', source: 'rows' },
         { start: '2024-10-01', end: '2025-04-05', source: 'rows' },
       ],
-      UK,
+      report.period,
     );
     expect(holed.approximate).toBe(true);
-    expect(holed.years[0].gaps).toEqual([{ start: '2024-09-01', end: '2024-09-30', kind: 'between' }]);
+    expect(holed.periods[0].gaps).toEqual([{ start: '2024-09-01', end: '2024-09-30', kind: 'between' }]);
   });
 });

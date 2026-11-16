@@ -11,6 +11,11 @@ const tick = (label: string) => {
   const row = [...document.querySelectorAll('tr')].find((tr) => tr.textContent?.includes(label))!;
   row.querySelector('input')!.click();
 };
+const choose = (id: string, value: string) => {
+  const el = document.getElementById(id) as HTMLSelectElement | HTMLInputElement;
+  el.value = value;
+  el.dispatchEvent(new Event('change'));
+};
 const samples = () => [
   { name: 'sample-a.csv', text: fixtureText('sample-a.csv') },
   { name: 'sample-b.csv', text: fixtureText('sample-b.csv') },
@@ -70,7 +75,7 @@ describe('the wizard', () => {
     expect(text()).toContain("Pounds at HMRC's rates");
     expect(text()).not.toContain('GBP per 1 USD');
     expect(text()).toContain('No estimate');
-    expect(text()).toContain('PayPal converted no USD this tax year');
+    expect(text()).toContain('PayPal converted no USD to GBP this tax year');
     expect(text()).not.toMatch(/tax you owe/i);
 
     press('See withdrawals');
@@ -180,6 +185,76 @@ describe('the wizard', () => {
     again().click();
     expect(title()).toBe('Add your PayPal files');
     expect(text()).not.toContain('sample-a.csv');
+  });
+
+  describe('choosing what to total', () => {
+    beforeEach(() => {
+      app.goTo('files');
+      app.addTexts(samples());
+      app.goTo('payers');
+      tick('Fake Platform Inc');
+      app.goTo('earnings');
+    });
+    const headings = () => [...document.querySelectorAll('.year h3')].map((el) => el.firstChild?.textContent?.trim());
+
+    it('starts with UK tax years and pounds, guessed from where the money was withdrawn', () => {
+      expect((document.getElementById('period-choice') as HTMLSelectElement).value).toBe('tax');
+      expect((document.getElementById('home-choice') as HTMLSelectElement).value).toBe('GBP');
+      expect(headings()).toEqual(['2023-24', '2024-25', '2025-26']);
+    });
+
+    it('splits by calendar year', () => {
+      choose('period-choice', 'calendar');
+      expect(title()).toBe('Earnings by year');
+      expect(headings()).toEqual(['2024', '2025']);
+      expect(text()).toContain('This year is not over yet.');
+      // The choice stays put on the next page.
+      press('See withdrawals');
+      expect(text()).toContain('Year');
+      expect((document.getElementById('period-choice') as HTMLSelectElement).value).toBe('calendar');
+    });
+
+    it('totals any dates you choose, starting with everything in the files', () => {
+      choose('period-choice', 'custom');
+      expect(title()).toBe('Earnings for your dates');
+      expect((document.getElementById('custom-from') as HTMLInputElement).value).toBe('2024-03-10');
+      expect((document.getElementById('custom-to') as HTMLInputElement).value).toBe('2025-05-10');
+      expect(headings()).toEqual(['Your dates']);
+      expect(text()).toContain('US$2,910.00');
+
+      choose('custom-from', '2024-04-06');
+      choose('custom-to', '2025-04-05');
+      expect(text()).toContain('US$2,100.00');
+      expect(text()).toContain('£1,664.25 estimate');
+      expect(text()).not.toContain('partly covered');
+    });
+
+    it('says so when the dates miss the files or are the wrong way round', () => {
+      choose('period-choice', 'custom');
+      choose('custom-from', '2020-01-01');
+      choose('custom-to', '2020-12-31');
+      expect(text()).toContain('None of your files cover these dates. Your files run from 10 Mar 2024 to 10 May 2025.');
+
+      choose('custom-from', '2021-01-01');
+      expect(text()).toContain('The "From" date is after the "To" date.');
+    });
+
+    it('shows another currency, without HMRC figures, which are only for pounds', () => {
+      choose('home-choice', 'USD');
+      expect(text()).not.toContain('HMRC');
+      expect(text()).not.toContain('estimate');
+      expect(text()).toContain('US$2,610.00'); // all of 2024: nothing to convert, so the total is exact
+      expect(document.querySelector('.year')!.querySelectorAll('thead th')).toHaveLength(3);
+    });
+
+    it('starts on calendar years for anyone not working in pounds, until they pick', () => {
+      choose('home-choice', 'USD');
+      expect((document.getElementById('period-choice') as HTMLSelectElement).value).toBe('calendar');
+      expect(title()).toBe('Earnings by year');
+      choose('period-choice', 'tax');
+      choose('home-choice', 'EUR');
+      expect((document.getElementById('period-choice') as HTMLSelectElement).value).toBe('tax');
+    });
   });
 
   it('never turns file contents into markup', () => {

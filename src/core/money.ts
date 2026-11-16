@@ -7,9 +7,35 @@ export function minorDigits(currency: string): number {
   return ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : 2;
 }
 
-/** "1,357.42" -> 135742. Returns null if the text is not a plain amount. */
-export function parseAmount(text: string, currency: string): number | null {
-  const cleaned = text.replace(/[,\s]/g, '');
+/** The character that separates whole units from pence or cents. */
+export type DecimalMark = '.' | ',';
+
+/**
+ * Works out whether a file writes amounts as "1,357.42" or "1.357,42" by
+ * looking at the last three characters of amounts in currencies that have
+ * pence or cents (PayPal always writes two decimal places for those). Throws
+ * if the file uses both.
+ */
+export function detectDecimalMark(samples: { text: string; currency: string }[]): DecimalMark {
+  let dots = 0;
+  let commas = 0;
+  for (const { text, currency } of samples) {
+    if (minorDigits(currency) !== 2) continue;
+    const mark = /\d([.,])\d{2}$/.exec(text.trim())?.[1];
+    if (mark === '.') dots++;
+    else if (mark === ',') commas++;
+  }
+  if (dots > 0 && commas > 0) throw new Error('The amounts in this file are written in more than one format.');
+  return commas > 0 ? ',' : '.';
+}
+
+/**
+ * "1,357.42" -> 135742, or with a decimal comma, "1.357,42" -> 135742.
+ * Returns null if the text is not a plain amount.
+ */
+export function parseAmount(text: string, currency: string, mark: DecimalMark = '.'): number | null {
+  const thousands = mark === '.' ? /[,\s]/g : /[.\s]/g;
+  const cleaned = text.replace(thousands, '').replace(',', '.');
   const match = /^([+-])?(\d+)(?:\.(\d+))?$/.exec(cleaned);
   if (!match) return null;
   const digits = minorDigits(currency);

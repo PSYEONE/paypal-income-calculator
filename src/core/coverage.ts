@@ -1,5 +1,5 @@
-import type { CountrySettings } from '../settings';
-import { addDays, parseDate, taxYearLabel, taxYearOf, taxYearRange } from './dates';
+import { addDays, parseDate } from './dates';
+import { periodsTouching, type Period, type PeriodRule } from './periods';
 import type { Txn } from './types';
 
 export interface DateRange {
@@ -37,7 +37,7 @@ export function fileRange(fileName: string, txns: Txn[]): FileRange | null {
 }
 
 /**
- * Why part of a tax year is not covered:
+ * Why part of a period is not covered:
  * 'before'  - it is earlier than anything in the files (often just when the person started)
  * 'after'   - it is later than anything in the files (often just when they exported)
  * 'between' - it is a hole between two files, which usually means a file is missing
@@ -48,29 +48,29 @@ export interface Gap extends DateRange {
   kind: GapKind;
 }
 
-export interface YearCoverage {
-  taxYear: number;
-  label: string;
+export interface PeriodCoverage extends Period {
   complete: boolean;
-  /** Parts of the tax year no file covers. */
+  /** Parts of the period no file covers. */
   gaps: Gap[];
-  /** True when the tax year had not ended on the day given as "today". */
+  /** True when no file covers any of the period. */
+  untouched: boolean;
+  /** True when the period had not ended on the day given as "today". */
   inProgress: boolean;
 }
 
 export interface Coverage {
-  years: YearCoverage[];
+  periods: PeriodCoverage[];
   /** True if any range came from first and last transactions rather than a file name. */
   approximate: boolean;
 }
 
 /**
- * For every tax year the files touch, says whether all of it is covered.
- * `today` ("YYYY-MM-DD") is used to tell a tax year that is still running
- * from one that is over.
+ * For every period the files touch (or the picked dates, for a range), says
+ * whether all of it is covered. `today` ("YYYY-MM-DD") is used to tell a
+ * period that is still running from one that is over.
  */
-export function checkCoverage(ranges: FileRange[], s: CountrySettings, today?: string): Coverage {
-  if (ranges.length === 0) return { years: [], approximate: false };
+export function checkCoverage(ranges: FileRange[], rule: PeriodRule, today?: string): Coverage {
+  if (ranges.length === 0) return { periods: [], approximate: false };
 
   const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
   const joined: DateRange[] = [];
@@ -83,14 +83,11 @@ export function checkCoverage(ranges: FileRange[], s: CountrySettings, today?: s
     }
   }
 
-  const years: YearCoverage[] = [];
-  const firstYear = taxYearOf(joined[0].start, s);
-  const lastYear = taxYearOf(joined[joined.length - 1].end, s);
-  for (let taxYear = firstYear; taxYear <= lastYear; taxYear++) {
-    const year = taxYearRange(taxYear, s);
+  const periods: PeriodCoverage[] = [];
+  const firstDay = joined[0].start;
+  const lastDay = joined[joined.length - 1].end;
+  for (const year of periodsTouching(firstDay, lastDay, rule)) {
     const gaps: Gap[] = [];
-    const firstDay = joined[0].start;
-    const lastDay = joined[joined.length - 1].end;
     const addGap = (start: string, end: string) =>
       gaps.push({ start, end, kind: end < firstDay ? 'before' : start > lastDay ? 'after' : 'between' });
     let cursor = year.start;
@@ -100,7 +97,8 @@ export function checkCoverage(ranges: FileRange[], s: CountrySettings, today?: s
       cursor = addDays(range.end, 1);
     }
     if (cursor <= year.end) addGap(cursor, year.end);
-    years.push({ taxYear, label: taxYearLabel(taxYear, s), complete: gaps.length === 0, gaps, inProgress: today !== undefined && today <= year.end });
+    const untouched = gaps.length === 1 && gaps[0].start === year.start && gaps[0].end === year.end;
+    periods.push({ ...year, complete: gaps.length === 0, gaps, untouched, inProgress: today !== undefined && today <= year.end });
   }
-  return { years, approximate: ranges.some((r) => r.source === 'rows') };
+  return { periods, approximate: ranges.some((r) => r.source === 'rows') };
 }

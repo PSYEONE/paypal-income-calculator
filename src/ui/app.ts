@@ -1,11 +1,13 @@
-import { checkCoverage, fileRange, type DateRange, type FileRange, type YearCoverage } from '../core/coverage';
+import { classify } from '../core/classify';
+import { checkCoverage, fileRange, type DateRange, type FileRange, type PeriodCoverage } from '../core/coverage';
 import { addDays, formatDate, formatMonth } from '../core/dates';
 import { mergeFiles } from '../core/merge';
 import { displayRate, formatMoney, formatRate } from '../core/money';
 import { parseCsv } from '../core/parse';
 import { buildPayers, type PayerGroup } from '../core/payers';
-import { summarise, type EarningsLine, type YearSummary } from '../core/summary';
-import type { ParsedFile } from '../core/types';
+import type { PeriodRule, YearStart } from '../core/periods';
+import { summarise, type EarningsLine, type PeriodSummary, type ReportOptions } from '../core/summary';
+import type { ParsedFile, Txn } from '../core/types';
 import { settings } from '../settings';
 import { h } from './dom';
 import { GUIDE_INTRO, GUIDE_STEPS, GUIDE_TIPS } from './guide';
@@ -21,18 +23,81 @@ const STEPS = [
 ] as const;
 export type StepId = (typeof STEPS)[number]['id'];
 
+/** How the totals are split up. */
+export type PeriodChoice = 'tax' | 'calendar' | 'custom';
+
+/** The words that change with the period choice. */
+const PERIOD_WORDS: Record<PeriodChoice, { title: string; column: string; within: string; notOver: string; tag: string }> = {
+  tax: { title: 'Earnings by tax year', column: 'Tax year', within: 'this tax year', notOver: 'This tax year is not over yet.', tag: 'part year' },
+  calendar: { title: 'Earnings by year', column: 'Year', within: 'this year', notOver: 'This year is not over yet.', tag: 'part year' },
+  custom: { title: 'Earnings for your dates', column: 'Dates', within: 'between these dates', notOver: 'Your dates run past today.', tag: 'partly covered' },
+};
+
 interface State {
   step: StepId;
   files: ParsedFile[];
   failures: { fileName: string; error: string }[];
   /** Tick-box keys of the payers the user counts as earnings. */
   selected: Set<string>;
+  /** Null until the person picks: tax years for pounds, calendar years for any other currency. */
+  period: PeriodChoice | null;
+  /** Picked dates for a custom period; null means "from the first / to the last transaction". */
+  customStart: string | null;
+  customEnd: string | null;
+  /** Currency to show converted figures in; null means "work it out from the files". */
+  home: string | null;
+}
+
+/** Everything about how the totals are being shown right now. */
+interface Report {
+  options: ReportOptions;
+  /** Every currency in the files, for the "Show in" choice. */
+  currencies: string[];
+  choice: PeriodChoice;
+  words: (typeof PERIOD_WORDS)[PeriodChoice];
+  /** Why the picked dates can't be used, if they can't. */
+  invalid: string | null;
+  /** First and last transaction in the files. */
+  span: DateRange | null;
 }
 
 const money = (minor: number, currency: string) => formatMoney(minor, currency, settings.locale);
 const day = (iso: string) => formatDate(iso, settings.locale);
 const span = (range: DateRange) => (range.start === range.end ? day(range.start) : `${day(range.start)} to ${day(range.end)}`);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** "6 Apr to 5 Apr" for a year starting on 6 April. */
+function yearSpan(start: YearStart): string {
+  const f = new Intl.DateTimeFormat(settings.locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return `${f.format(Date.UTC(2001, start.month - 1, start.day))} to ${f.format(Date.UTC(2001, start.month - 1, start.day - 1))}`;
+}
+
+/** "pounds", "US dollars", "euros": a currency's name in a sentence. */
+function currencyWords(code: string): string {
+  if (code === 'GBP') return 'pounds';
+  try {
+    const part = new Intl.NumberFormat(settings.locale, { style: 'currency', currency: code, currencyDisplay: 'name' })
+      .formatToParts(2)
+      .find((p) => p.type === 'currency');
+    if (part) return part.value;
+  } catch {
+    // Unknown currency code: fall back to the code itself.
+  }
+  return code;
+}
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * The currency someone most likely lives in: the one they withdraw to their
+ * bank most often. Falls back to the country's own currency.
+ */
+function likelyHome(txns: Txn[], currencies: string[]): string {
+  const counts = new Map<string, number>();
+  for (const txn of txns) if (classify(txn) === 'withdrawal') counts.set(txn.currency, (counts.get(txn.currency) ?? 0) + 1);
+  const ranked = [...counts].sort((a, b) => b[1] - a[1] || Number(b[0] === settings.homeCurrency) - Number(a[0] === settings.homeCurrency));
+  if (ranked.length > 0) return ranked[0][0];
+  return currencies.includes(settings.homeCurrency) || currencies.length === 0 ? settings.homeCurrency : currencies[0];
+}
+
 /** Lets a wide table scroll sideways on a narrow screen. */
 const scroll = (table: HTMLElement) => h('div', { class: 'table-wrap' }, table);
 
@@ -66,7 +131,7 @@ function todayIso(): string {
 }
 
 export function createApp(root: HTMLElement, today: string = todayIso()) {
-  const state: State = { step: 'welcome', files: [], failures: [], selected: new Set() };
+  const state: State = { step: 'welcome', files: [], failures: [], selected: new Set(), period: null, customStart: null, customEnd: null, home: null };
 
   // Every page has the same three parts: a title, a scrolling middle, and buttons pinned at the bottom.
   const head = h('div', { class: 'wiz-head' });
@@ -82,7 +147,92 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     const lists = buildPayers(merged.txns);
     const known = new Set([...lists.payers, ...lists.unknown].map((p) => p.key));
     for (const key of state.selected) if (!known.has(key)) state.selected.delete(key);
-    return { merged, ranges, lists };
+    return { merged, ranges, lists, report: reportFor(merged.txns) };
+  }
+
+  function reportFor(txns: Txn[]): Report {
+    const currencies = [...new Set(txns.map((t) => t.currency))].sort();
+    const home = state.home && currencies.includes(state.home) ? state.home : likelyHome(txns, currencies);
+    // Merged transactions are in date order.
+    const span = txns.length > 0 ? { start: txns[0].date, end: txns[txns.length - 1].date } : null;
+    // A country's own tax year is the natural default for its own currency. Anyone else is more likely to want calendar years.
+    const choice = state.period ?? (home === settings.homeCurrency ? 'tax' : 'calendar');
+    let period: PeriodRule;
+    let invalid: string | null = null;
+    if (choice === 'custom') {
+      const start = state.customStart ?? span?.start ?? today;
+      const end = state.customEnd ?? span?.end ?? today;
+      if (start > end) invalid = 'The "From" date is after the "To" date.';
+      period = { kind: 'range', start, end };
+    } else {
+      period = { kind: 'yearly', start: choice === 'tax' ? settings.taxYearStart : { month: 1, day: 1 } };
+    }
+    return {
+      options: { homeCurrency: home, period, officialRates: settings.officialRates },
+      currencies,
+      choice,
+      words: PERIOD_WORDS[choice],
+      invalid,
+      span,
+    };
+  }
+
+  /** Redraws the page after a choice changes, keeping the keyboard on the control that changed. */
+  function refresh(focusId: string) {
+    render();
+    document.getElementById(focusId)?.focus();
+  }
+
+  /** The "Totals for" and "Show in" choices at the top of the results pages. */
+  function reportControls(report: Report, withCurrency: boolean): HTMLElement {
+    const field = (label: string, control: HTMLElement) => h('label', { class: 'field' }, h('span', null, label), control);
+
+    const periodSelect = h(
+      'select',
+      { id: 'period-choice' },
+      h('option', { value: 'tax' }, `${settings.taxYearName}s (${yearSpan(settings.taxYearStart)})`),
+      h('option', { value: 'calendar' }, `Calendar years (${yearSpan({ month: 1, day: 1 })})`),
+      h('option', { value: 'custom' }, 'Dates you choose'),
+    );
+    periodSelect.value = report.choice;
+    periodSelect.addEventListener('change', () => {
+      state.period = periodSelect.value as PeriodChoice;
+      refresh('period-choice');
+    });
+    const fields = [field('Totals for', periodSelect)];
+
+    const rule = report.options.period;
+    if (rule.kind === 'range') {
+      const date = (id: string, value: string, set: (v: string | null) => void) => {
+        const input = h('input', { type: 'date', id });
+        input.value = value;
+        // "change" fires once a date is picked or typed in full, not on every keystroke.
+        input.addEventListener('change', () => {
+          set(input.value || null);
+          refresh(id);
+        });
+        return input;
+      };
+      fields.push(
+        field('From', date('custom-from', rule.start, (v) => (state.customStart = v))),
+        field('To', date('custom-to', rule.end, (v) => (state.customEnd = v))),
+      );
+    }
+
+    if (withCurrency && report.currencies.length > 1) {
+      const currencySelect = h(
+        'select',
+        { id: 'home-choice' },
+        report.currencies.map((code) => h('option', { value: code }, `${code} (${currencyWords(code)})`)),
+      );
+      currencySelect.value = report.options.homeCurrency;
+      currencySelect.addEventListener('change', () => {
+        state.home = currencySelect.value;
+        refresh('home-choice');
+      });
+      fields.push(field('Show in', currencySelect));
+    }
+    return h('div', { class: 'controls' }, fields);
   }
 
   function goTo(step: StepId) {
@@ -118,6 +268,10 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     state.files = [];
     state.failures = [];
     state.selected.clear();
+    state.customStart = null;
+    state.customEnd = null;
+    state.home = null;
+    state.period = null;
     goTo('files');
   }
 
@@ -144,7 +298,7 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
       fill.style.width = `${(index / numbered) * 100}%`;
       head.replaceChildren(
         h('div', { class: 'small' }, `Step ${index} of ${numbered}`),
-        h('h1', { tabindex: '-1' }, STEPS[index].title),
+        h('h1', { tabindex: '-1' }, state.step === 'earnings' ? reportFor(mergeFiles(state.files).txns).words.title : STEPS[index].title),
         h('div', { class: 'bar-track' }, fill),
       );
     }
@@ -158,13 +312,13 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
           'div',
           { class: 'hero' },
           h('h1', null, 'PayPal Income Calculator'),
-          h('p', null, 'Add up what you were paid through PayPal in each UK tax year.'),
+          h('p', null, 'Add up what you were paid through PayPal, for each tax year or for any dates you choose.'),
           h('p', null, 'You get:'),
           h(
             'ul',
             null,
-            h('li', null, h('strong', null, 'earnings per tax year'), ', in the currency you were paid in'),
-            h('li', null, `the same earnings in pounds, at PayPal's rate and at ${settings.officialRates.name}'s`),
+            h('li', null, h('strong', null, 'your earnings'), ', in the currency you were paid in'),
+            h('li', null, `the same earnings in your own currency, at PayPal's rate (and at ${settings.officialRates.name}'s, for pounds)`),
             h('li', null, 'what you withdrew to your card or bank, to check against your statement'),
           ),
           h('p', null, 'Your files are read on this device only. Nothing is uploaded, sent or saved anywhere.'),
@@ -256,53 +410,80 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     },
 
     earnings() {
-      const { merged, ranges } = work();
-      const summary = summarise(merged.txns, state.selected, settings);
-      const coverage = coverageOf(ranges);
-      const blocks = summary.years.map((year) => earningsBlock(year, coverage.byYear.get(year.taxYear), coverage.approximate)).filter((b) => b !== null);
+      const { merged, ranges, report } = work();
+      const controls = reportControls(report, true);
+      foot.replaceChildren(back('payers'), spacer(), button('See withdrawals', () => goTo('withdrawals'), true));
+      if (report.invalid) {
+        body.replaceChildren(controls, h('p', { class: 'warn' }, report.invalid));
+        return;
+      }
+      const summary = summarise(merged.txns, state.selected, report.options);
+      const coverage = coverageOf(ranges, report.options.period);
+      // Only show converted figures when something needs converting.
+      const converting = summary.periods.some((p) => p.earnings.some((line) => !line.isHome));
+      const showOfficial = converting && summary.official;
+      const blocks = summary.periods
+        .map((p) => earningsBlock(p, coverage.byKey.get(p.key), coverage.approximate, report, converting, showOfficial))
+        .filter((b) => b !== null);
+      const home = report.options.homeCurrency;
+      const homeWords = currencyWords(home);
       const authority = settings.officialRates.name;
       body.replaceChildren(
         ...[
-          holesWarning(coverage.years, coverage.approximate),
-          ...(blocks.length > 0
-            ? blocks
-            : [h('p', { class: 'lead' }, state.selected.size === 0 ? 'Nothing is ticked yet. Go back and tick at least one payer to see your earnings.' : 'No earnings from the ticked payers.')]),
+          controls,
+          holesWarning(coverage.periods, coverage.approximate),
+          ...(blocks.length > 0 ? blocks : [h('p', { class: 'lead' }, nothingToShow(report, coverage.periods, 'earnings'))]),
           summary.conversionsLeftOut > 0 &&
             h('p', { class: 'warn' }, `${plural(summary.conversionsLeftOut, 'currency conversion')} could not be matched to its other half and ${summary.conversionsLeftOut === 1 ? 'was' : 'were'} left out of the rates.`),
           blocks.length > 0 &&
+            showOfficial &&
             h(
               'div',
               { class: 'callout' },
-              h('strong', null, 'Two ways of turning your earnings into pounds'),
+              h('strong', null, `Two ways of turning your earnings into ${homeWords}`),
               h(
                 'ul',
                 null,
-                h('li', null, h('strong', null, 'PayPal gave you: '), "the pounds that actually reached you, after PayPal's exchange fee."),
+                h('li', null, h('strong', null, 'PayPal gave you: '), `the ${homeWords} that actually reached you, after PayPal's exchange fee.`),
                 h('li', null, h('strong', null, `At ${authority}'s rates: `), `what the same money was worth at ${authority}'s official rate for the month you were paid, before any fee.`),
               ),
               h('p', null, 'This tool does not say which one to report.'),
             ),
+          blocks.length > 0 &&
+            converting &&
+            !showOfficial &&
+            h(
+              'div',
+              { class: 'callout' },
+              h('strong', null, `${capital(homeWords)} PayPal gave you`),
+              h('p', null, `The ${homeWords} that actually reached you, after PayPal's exchange fee. It is worked out from the currency conversions in your files.`),
+            ),
         ].filter((part) => part !== false && part !== null),
       );
-      foot.replaceChildren(back('payers'), spacer(), button('See withdrawals', () => goTo('withdrawals'), true));
     },
 
     withdrawals() {
-      const { merged, ranges } = work();
-      const summary = summarise(merged.txns, state.selected, settings);
-      const coverage = coverageOf(ranges);
-      const rows = summary.years.flatMap((year) =>
-        year.withdrawals.map((w) =>
+      const { merged, ranges, report } = work();
+      const controls = reportControls(report, false);
+      foot.replaceChildren(back('earnings'), spacer(), confirmButton('Start again', 'Clear everything?', startAgain));
+      if (report.invalid) {
+        body.replaceChildren(controls, h('p', { class: 'warn' }, report.invalid));
+        return;
+      }
+      const summary = summarise(merged.txns, state.selected, report.options);
+      const coverage = coverageOf(ranges, report.options.period);
+      const rows = summary.periods.flatMap((period) =>
+        period.withdrawals.map((w) =>
           h(
             'tr',
             null,
             h(
               'td',
               null,
-              year.label,
+              period.label,
               ' ',
-              partYearTag(coverage.byYear.get(year.taxYear)),
-              partYearNotes(coverage.byYear.get(year.taxYear), coverage.approximate).map((note) => h('div', { class: 'small' }, note)),
+              partYearTag(coverage.byKey.get(period.key), report),
+              partYearNotes(coverage.byKey.get(period.key), coverage.approximate, report).map((note) => h('div', { class: 'small' }, note)),
             ),
             h('td', { class: 'num' }, money(w.amount, w.currency)),
             h('td', null, plural(w.withdrawals, 'withdrawal') + (w.reversals > 0 ? `, less ${w.reversals} that bounced back` : '')),
@@ -311,16 +492,27 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
       );
       body.replaceChildren(
         ...[
+          controls,
           h('p', { class: 'lead' }, 'This is separate from earnings. Use it to check against your bank statement. It includes everything you withdrew, whatever the money was from.'),
-          holesWarning(coverage.years, coverage.approximate),
+          holesWarning(coverage.periods, coverage.approximate),
           rows.length > 0
-            ? scroll(h('table', null, h('thead', null, h('tr', null, h('th', null, 'Tax year'), h('th', { class: 'num' }, 'Withdrawn'), h('th', null, 'Made up of'))), h('tbody', null, rows)))
-            : h('p', null, 'No withdrawals were found in these files.'),
+            ? scroll(h('table', null, h('thead', null, h('tr', null, h('th', null, report.words.column), h('th', { class: 'num' }, 'Withdrawn'), h('th', null, 'Made up of'))), h('tbody', null, rows)))
+            : h('p', null, nothingToShow(report, coverage.periods, 'withdrawals')),
         ].filter((part) => part !== null),
       );
-      foot.replaceChildren(back('earnings'), spacer(), confirmButton('Start again', 'Clear everything?', startAgain));
     },
   };
+
+  /** What to say when a results page has nothing to list. */
+  function nothingToShow(report: Report, periods: PeriodCoverage[], what: 'earnings' | 'withdrawals'): string {
+    if (report.options.period.kind === 'range' && periods[0]?.untouched && report.span) {
+      return `None of your files cover these dates. Your files run from ${span(report.span)}.`;
+    }
+    const within = report.options.period.kind === 'range' ? ' between these dates' : '';
+    if (what === 'withdrawals') return `No withdrawals were found${within}.`;
+    if (state.selected.size === 0) return 'Nothing is ticked yet. Go back and tick at least one payer to see your earnings.';
+    return `No earnings from the ticked payers${within}.`;
+  }
 
   // Shown beside Back on the payers page.
   const tickedNote = h('span', { class: 'small' });
@@ -375,50 +567,48 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     );
   }
 
-  /** How much of each tax year the files cover. */
-  function coverageOf(ranges: Map<string, FileRange | null>) {
-    const coverage = checkCoverage([...ranges.values()].filter((r) => r !== null), settings, today);
-    return { byYear: new Map(coverage.years.map((y) => [y.taxYear, y])), years: coverage.years, approximate: coverage.approximate };
+  /** How much of each period the files cover. */
+  function coverageOf(ranges: Map<string, FileRange | null>, rule: PeriodRule) {
+    const coverage = checkCoverage([...ranges.values()].filter((r) => r !== null), rule, today);
+    return { byKey: new Map(coverage.periods.map((p) => [p.key, p])), periods: coverage.periods, approximate: coverage.approximate };
   }
 
   /**
-   * Plain notes for a tax year the files only partly cover. A late start or an
+   * Plain notes for a period the files only partly cover. A late start or an
    * early finish is normal (someone started work mid-year, or the year is not
    * over), so these are information, not warnings.
    */
-  function partYearNotes(year: YearCoverage | undefined, approximate: boolean): string[] {
+  function partYearNotes(period: PeriodCoverage | undefined, approximate: boolean, report: Report): string[] {
     const notes: string[] = [];
-    for (const gap of year?.gaps ?? []) {
+    if (!period || period.untouched) return notes;
+    for (const gap of period.gaps) {
       if (gap.kind === 'before') {
         const from = day(addDays(gap.end, 1));
-        notes.push(
-          approximate
-            ? `Counted from ${from}, the first transaction in your files. Nothing is missing if you had no PayPal payments earlier in this tax year.`
-            : `Counted from ${from}, where your files start. Nothing is missing if you had no PayPal payments earlier in this tax year.`,
-        );
+        const where = approximate ? 'the first transaction in your files' : 'where your files start';
+        notes.push(`Counted from ${from}, ${where}. Nothing is missing if you had no PayPal payments before then.`);
       } else if (gap.kind === 'after') {
         const upTo = day(addDays(gap.start, -1));
         const where = approximate ? 'the last transaction in your files' : 'where your files end';
         notes.push(
-          year!.inProgress
-            ? `This tax year is not over yet. Counted up to ${upTo}, ${where}.`
-            : `Counted up to ${upTo}, ${where}. Nothing is missing if you had no PayPal payments later in this tax year.`,
+          period.inProgress
+            ? `${report.words.notOver} Counted up to ${upTo}, ${where}.`
+            : `Counted up to ${upTo}, ${where}. Nothing is missing if you had no PayPal payments after that.`,
         );
       }
     }
     return notes;
   }
 
-  /** "part year" or "so far" beside a tax year's name, or nothing for a whole year. */
-  function partYearTag(year: YearCoverage | undefined): HTMLElement | false {
-    if (!year || !year.gaps.some((g) => g.kind !== 'between')) return false;
-    const soFar = year.inProgress && year.gaps.every((g) => g.kind !== 'before');
-    return h('span', { class: 'tag' }, soFar ? 'so far' : 'part year');
+  /** "part year" or "so far" beside a period's name, or nothing when the files cover all of it. */
+  function partYearTag(period: PeriodCoverage | undefined, report: Report): HTMLElement | false {
+    if (!period || !period.gaps.some((g) => g.kind !== 'between')) return false;
+    const soFar = period.inProgress && period.gaps.every((g) => g.kind !== 'before');
+    return h('span', { class: 'tag' }, soFar ? 'so far' : report.words.tag);
   }
 
   /** A hole between two files usually means a file is missing, so this one is a warning. */
-  function holesWarning(years: YearCoverage[], approximate: boolean): HTMLElement | null {
-    const holes = years.flatMap((y) => y.gaps.filter((g) => g.kind === 'between').map((g) => `${y.label}: ${span(g)}`));
+  function holesWarning(periods: PeriodCoverage[], approximate: boolean): HTMLElement | null {
+    const holes = periods.flatMap((p) => p.gaps.filter((g) => g.kind === 'between').map((g) => `${p.label}: ${span(g)}`));
     if (holes.length === 0) return null;
     return h(
       'div',
@@ -478,15 +668,15 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     ));
   }
 
-  function paypalCell(line: EarningsLine): HTMLElement {
-    const home = settings.homeCurrency;
+  function paypalCell(line: EarningsLine, report: Report): HTMLElement {
+    const home = report.options.homeCurrency;
     if (line.isHome) return h('td', { class: 'num' }, money(line.earned, home));
     if (line.homeValue === null) {
-      return h('td', { class: 'num' }, h('span', { class: 'warn' }, 'No estimate'), h('div', { class: 'small' }, `PayPal converted no ${line.currency} this tax year`));
+      return h('td', { class: 'num' }, h('span', { class: 'warn' }, 'No estimate'), h('div', { class: 'small' }, `PayPal converted no ${line.currency} to ${home} ${report.words.within}`));
     }
     const rate = displayRate(line.converted, line.currency, line.homeReceived, home);
     // The short rate is for a glance; hovering gives the working.
-    const working = `In this tax year PayPal turned ${money(line.converted, line.currency)} into ${money(line.homeReceived, home)}. That average rate is applied to what you earned.`;
+    const working = `PayPal turned ${money(line.converted, line.currency)} into ${money(line.homeReceived, home)} ${report.words.within}. That average rate is applied to what you earned.`;
     return h(
       'td',
       { class: 'num' },
@@ -496,8 +686,8 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     );
   }
 
-  function officialCell(line: EarningsLine): HTMLElement {
-    const home = settings.homeCurrency;
+  function officialCell(line: EarningsLine, report: Report): HTMLElement {
+    const home = report.options.homeCurrency;
     const table = settings.officialRates;
     if (line.isHome) return h('td', { class: 'num' }, money(line.earned, home));
     if (line.officialValue === null) {
@@ -526,36 +716,65 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
     );
   }
 
-  function earningsBlock(year: YearSummary, covered: YearCoverage | undefined, approximate: boolean): HTMLElement | null {
-    if (year.earnings.length === 0) return null;
-    const home = settings.homeCurrency;
+  function earningsBlock(
+    period: PeriodSummary,
+    covered: PeriodCoverage | undefined,
+    approximate: boolean,
+    report: Report,
+    converting: boolean,
+    showOfficial: boolean,
+  ): HTMLElement | null {
+    if (period.earnings.length === 0) return null;
+    const home = report.options.homeCurrency;
+    const homeWords = capital(currencyWords(home));
     const authority = settings.officialRates.name;
-    const rows = year.earnings.map((line) =>
-      h('tr', null, h('td', null, line.currency), h('td', { class: 'num' }, money(line.earned, line.currency)), h('td', { class: 'num' }, line.count), paypalCell(line), officialCell(line)),
+    const rows = period.earnings.map((line) =>
+      h(
+        'tr',
+        null,
+        h('td', null, line.currency),
+        h('td', { class: 'num' }, money(line.earned, line.currency)),
+        h('td', { class: 'num' }, line.count),
+        converting && paypalCell(line, report),
+        showOfficial && officialCell(line, report),
+      ),
     );
     const leftOut = (missing: EarningsLine[]) => h('div', { class: 'small' }, `Not counting the ${missing.map((l) => l.currency).join(' and ')} above`);
-    const estimated = year.earnings.some((line) => !line.isHome && line.homeValue !== null);
-    const paypalTotal = year.homeTotalComplete
-      ? [`${money(year.homeTotal, home)} `, estimated && h('span', { class: 'tag' }, 'estimate')]
-      : [money(year.homeTotal, home), leftOut(year.earnings.filter((l) => l.homeValue === null))];
-    const officialTotal = year.officialTotalComplete
-      ? money(year.officialTotal, home)
-      : [money(year.officialTotal, home), leftOut(year.earnings.filter((l) => l.officialValue === null))];
+    const estimated = period.earnings.some((line) => !line.isHome && line.homeValue !== null);
+    const paypalTotal = period.homeTotalComplete
+      ? [`${money(period.homeTotal, home)} `, estimated && h('span', { class: 'tag' }, 'estimate')]
+      : [money(period.homeTotal, home), leftOut(period.earnings.filter((l) => l.homeValue === null))];
+    const officialTotal = period.officialTotalComplete
+      ? money(period.officialTotal, home)
+      : [money(period.officialTotal, home), leftOut(period.earnings.filter((l) => l.officialValue === null))];
+    const count = period.earnings.reduce((sum, line) => sum + line.count, 0);
+    // Nothing to convert: every payment is already in the home currency, so the total sits under "Earned".
+    const total = converting
+      ? h('tr', null, h('th', { colspan: '3' }, `Total in ${home}`), h('th', { class: 'num' }, paypalTotal), showOfficial && h('th', { class: 'num' }, officialTotal))
+      : h('tr', null, h('th', null, 'Total'), h('th', { class: 'num' }, money(period.homeTotal, home)), h('th', { class: 'num' }, count));
     return h(
       'div',
       { class: 'year' },
-      h('h3', null, `${year.label} `, h('span', { class: 'small' }, `(${span(year)})`), partYearTag(covered)),
-      partYearNotes(covered, approximate).map((note) => h('p', { class: 'year-note' }, note)),
+      h('h3', null, `${period.label} `, h('span', { class: 'small' }, `(${span(period)})`), partYearTag(covered, report)),
+      partYearNotes(covered, approximate, report).map((note) => h('p', { class: 'year-note' }, note)),
       h(
         'table',
-        null,
+        { class: showOfficial ? 'cols-5' : converting ? 'cols-4' : 'cols-3' },
         h(
           'thead',
           null,
-          h('tr', null, h('th', null, 'Paid in'), h('th', { class: 'num' }, 'Earned'), h('th', { class: 'num' }, 'Payments'), h('th', { class: 'num' }, 'Pounds PayPal gave you'), h('th', { class: 'num' }, `Pounds at ${authority}'s rates`)),
+          h(
+            'tr',
+            null,
+            h('th', null, 'Paid in'),
+            h('th', { class: 'num' }, 'Earned'),
+            h('th', { class: 'num' }, 'Payments'),
+            converting && h('th', { class: 'num' }, `${homeWords} PayPal gave you`),
+            showOfficial && h('th', { class: 'num' }, `${homeWords} at ${authority}'s rates`),
+          ),
         ),
         h('tbody', null, rows),
-        h('tfoot', null, h('tr', null, h('th', { colspan: '3' }, `Total in ${home}`), h('th', { class: 'num' }, paypalTotal), h('th', { class: 'num' }, officialTotal))),
+        h('tfoot', null, total),
       ),
     );
   }

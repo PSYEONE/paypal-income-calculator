@@ -1,4 +1,4 @@
-import type { CountrySettings, DateOrder } from '../settings';
+import type { DateOrder } from '../settings';
 
 // Dates are plain "YYYY-MM-DD" text, which sorts and compares correctly.
 
@@ -54,7 +54,7 @@ export function parseDate(text: string, order: DateOrder): string | null {
   return toIso(year, month, day);
 }
 
-function toIso(year: number, month: number, day: number): string {
+export function toIso(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
@@ -62,26 +62,6 @@ export function addDays(iso: string, days: number): string {
   const [year, month, day] = iso.split('-').map(Number);
   const d = new Date(Date.UTC(year, month - 1, day + days));
   return toIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
-}
-
-/** The year the tax year starts in. 5 April 2025 -> 2024, 6 April 2025 -> 2025. */
-export function taxYearOf(iso: string, s: CountrySettings): number {
-  const [year, month, day] = iso.split('-').map(Number);
-  const { month: startMonth, day: startDay } = s.taxYearStart;
-  const onOrAfterStart = month > startMonth || (month === startMonth && day >= startDay);
-  return onOrAfterStart ? year : year - 1;
-}
-
-export function taxYearRange(startYear: number, s: CountrySettings): { start: string; end: string } {
-  const start = toIso(startYear, s.taxYearStart.month, s.taxYearStart.day);
-  const end = addDays(toIso(startYear + 1, s.taxYearStart.month, s.taxYearStart.day), -1);
-  return { start, end };
-}
-
-/** "2024-25", or just "2024" where the tax year is the calendar year. */
-export function taxYearLabel(startYear: number, s: CountrySettings): string {
-  if (s.taxYearStart.month === 1 && s.taxYearStart.day === 1) return String(startYear);
-  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
 }
 
 /** "2024-04" -> "Apr 2024", for display. */

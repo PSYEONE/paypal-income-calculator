@@ -1,10 +1,19 @@
-import type { CountrySettings } from '../settings';
 import { classify } from './classify';
-import { taxYearLabel, taxYearOf, taxYearRange } from './dates';
 import { mulDivRound } from './money';
-import { convertAtOfficialRate } from './officialRates';
+import { convertAtOfficialRate, type RateTable } from './officialRates';
+import { periodOf, type Period, type PeriodRule } from './periods';
 import { selectionKey } from './payers';
 import type { Txn } from './types';
+
+/** What to total up, and how. */
+export interface ReportOptions {
+  /** The currency to show converted figures in. */
+  homeCurrency: string;
+  /** How to split the dates: yearly from a fixed day, or one picked range. */
+  period: PeriodRule;
+  /** Published rates. Only used when they convert into `homeCurrency`. */
+  officialRates: RateTable | null;
+}
 
 export interface EarningsLine {
   currency: string;
@@ -15,10 +24,10 @@ export interface EarningsLine {
   /**
    * Home-currency value. Exact for home-currency payments; for others it is
    * an estimate from PayPal's blended rate, or null when PayPal converted
-   * none of that currency in the tax year.
+   * none of that currency in the period.
    */
   homeValue: number | null;
-  /** How much of this currency PayPal converted in the tax year (net). */
+  /** How much of this currency PayPal converted in the period (net). */
   converted: number;
   /** Home currency PayPal gave for it (net). */
   homeReceived: number;
@@ -39,11 +48,7 @@ export interface WithdrawalLine {
   reversals: number;
 }
 
-export interface YearSummary {
-  taxYear: number;
-  label: string;
-  start: string;
-  end: string;
+export interface PeriodSummary extends Period {
   earnings: EarningsLine[];
   /** Sum of the home values that are known. */
   homeTotal: number;
@@ -56,25 +61,33 @@ export interface YearSummary {
 }
 
 export interface Summary {
-  years: YearSummary[];
+  periods: PeriodSummary[];
   /** Conversions that could not be tied to one foreign currency and the home currency. */
   conversionsLeftOut: number;
+  /** True when published rates were available for the home currency, so `officialValue` means something. */
+  official: boolean;
 }
 
-interface YearWork {
+interface PeriodWork {
+  period: Period;
   earned: Map<string, { amount: number; count: number; byMonth: Map<string, number> }>;
   converted: Map<string, { foreign: number; home: number }>;
   withdrawn: Map<string, WithdrawalLine>;
 }
 
-export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: CountrySettings): Summary {
-  const years = new Map<number, YearWork>();
-  const yearOf = (txn: Txn): YearWork => {
-    const taxYear = taxYearOf(txn.date, s);
-    let work = years.get(taxYear);
+export function summarise(txns: Txn[], selected: ReadonlySet<string>, opts: ReportOptions): Summary {
+  const home = opts.homeCurrency;
+  const official = opts.officialRates && opts.officialRates.base === home ? opts.officialRates : null;
+
+  const periods = new Map<string, PeriodWork>();
+  /** The running totals for the period a transaction falls in, or null when it is outside the picked dates. */
+  const workFor = (txn: Txn): PeriodWork | null => {
+    const period = periodOf(txn.date, opts.period);
+    if (!period) return null;
+    let work = periods.get(period.key);
     if (!work) {
-      work = { earned: new Map(), converted: new Map(), withdrawn: new Map() };
-      years.set(taxYear, work);
+      work = { period, earned: new Map(), converted: new Map(), withdrawn: new Map() };
+      periods.set(period.key, work);
     }
     return work;
   };
@@ -86,7 +99,8 @@ export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: Country
       conversions.push(txn);
     } else if (kind === 'earning' || kind === 'unknownPositive') {
       if (!selected.has(selectionKey(txn, kind)!)) continue;
-      const earned = yearOf(txn).earned;
+      const earned = workFor(txn)?.earned;
+      if (!earned) continue;
       const line = earned.get(txn.currency) ?? { amount: 0, count: 0, byMonth: new Map<string, number>() };
       line.amount += txn.gross;
       line.count++;
@@ -94,7 +108,8 @@ export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: Country
       line.byMonth.set(month, (line.byMonth.get(month) ?? 0) + txn.gross);
       earned.set(txn.currency, line);
     } else if (kind === 'withdrawal' || kind === 'withdrawalReversal') {
-      const withdrawn = yearOf(txn).withdrawn;
+      const withdrawn = workFor(txn)?.withdrawn;
+      if (!withdrawn) continue;
       const line = withdrawn.get(txn.currency) ?? { currency: txn.currency, amount: 0, withdrawals: 0, reversals: 0 };
       line.amount -= txn.gross; // withdrawals are negative, reversals positive
       if (kind === 'withdrawal') line.withdrawals++;
@@ -118,32 +133,33 @@ export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: Country
 
   let conversionsLeftOut = 0;
   for (const group of groups.values()) {
-    const foreign = new Set(group.filter((t) => t.currency !== s.homeCurrency).map((t) => t.currency));
-    const hasHome = group.some((t) => t.currency === s.homeCurrency);
+    const foreign = new Set(group.filter((t) => t.currency !== home).map((t) => t.currency));
+    const hasHome = group.some((t) => t.currency === home);
     if (foreign.size !== 1 || !hasHome) {
       conversionsLeftOut++;
       continue;
     }
     const [currency] = foreign;
     for (const txn of group) {
-      const converted = yearOf(txn).converted;
+      const converted = workFor(txn)?.converted;
+      if (!converted) continue;
       const line = converted.get(currency) ?? { foreign: 0, home: 0 };
-      if (txn.currency === s.homeCurrency) line.home += txn.gross;
+      if (txn.currency === home) line.home += txn.gross;
       else line.foreign -= txn.gross; // foreign currency leaves the balance as a negative
       converted.set(currency, line);
     }
   }
 
-  const result: YearSummary[] = [];
-  for (const [taxYear, work] of [...years].sort((a, b) => a[0] - b[0])) {
+  const result: PeriodSummary[] = [];
+  for (const work of [...periods.values()].sort((a, b) => a.period.start.localeCompare(b.period.start))) {
     if (work.earned.size === 0 && work.withdrawn.size === 0) continue;
     const earnings: EarningsLine[] = [];
     for (const [currency, { amount, count, byMonth }] of work.earned) {
-      const isHome = currency === s.homeCurrency;
+      const isHome = currency === home;
       let officialValue = 0;
       const officialMissingMonths: string[] = [];
       for (const [month, monthTotal] of byMonth) {
-        const value = isHome ? monthTotal : convertAtOfficialRate(monthTotal, currency, month, s.homeCurrency, s.officialRates);
+        const value = isHome ? monthTotal : official ? convertAtOfficialRate(monthTotal, currency, month, home, official) : null;
         if (value === null) officialMissingMonths.push(month);
         else officialValue += value;
       }
@@ -157,16 +173,14 @@ export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: Country
         homeValue: isHome ? amount : usable ? mulDivRound(amount, conv.home, conv.foreign) : null,
         converted: isHome || !usable ? 0 : conv.foreign,
         homeReceived: isHome || !usable ? 0 : conv.home,
-        officialValue: officialMissingMonths.length > 0 ? null : officialValue,
-        officialMissingMonths: officialMissingMonths.sort(),
+        officialValue: !official || officialMissingMonths.length > 0 ? null : officialValue,
+        officialMissingMonths: official ? officialMissingMonths.sort() : [],
       });
     }
     // Home currency first, then alphabetical.
     earnings.sort((a, b) => Number(b.isHome) - Number(a.isHome) || a.currency.localeCompare(b.currency));
     result.push({
-      taxYear,
-      label: taxYearLabel(taxYear, s),
-      ...taxYearRange(taxYear, s),
+      ...work.period,
       earnings,
       homeTotal: earnings.reduce((sum, line) => sum + (line.homeValue ?? 0), 0),
       homeTotalComplete: earnings.every((line) => line.homeValue !== null),
@@ -175,5 +189,5 @@ export function summarise(txns: Txn[], selected: ReadonlySet<string>, s: Country
       withdrawals: [...work.withdrawn.values()].sort((a, b) => a.currency.localeCompare(b.currency)),
     });
   }
-  return { years: result, conversionsLeftOut };
+  return { periods: result, conversionsLeftOut, official: official !== null };
 }

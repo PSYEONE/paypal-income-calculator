@@ -1,6 +1,6 @@
 # PayPal Income Calculator
 
-A small web page that adds up PayPal earnings and withdrawals per UK tax year (6 April to 5 April).
+A small web page that adds up PayPal earnings and withdrawals per UK tax year (6 April to 5 April), per calendar year, or between any two dates you pick.
 
 It is a calculator, not tax advice. It never shows a "tax you owe" figure.
 
@@ -8,8 +8,13 @@ It is a calculator, not tax advice. It never shows a "tax you owe" figure.
 
 1. You add one or more PayPal CSV exports.
 2. It lists everyone who paid you, with a payment count and total. You tick the ones that are earnings.
-3. It shows earnings per tax year in the currency you were paid in, with two pounds figures side by side: what PayPal gave you, and the value at HMRC's published exchange rates.
-4. It shows, separately, the money withdrawn to your card or bank per tax year, to check against a bank statement.
+3. It shows earnings in the currency you were paid in, plus what PayPal gave you in your own currency. When that currency is pounds, it also shows the value at HMRC's published exchange rates.
+4. It shows, separately, the money withdrawn to your card or bank, to check against a bank statement.
+
+On the results pages you choose:
+
+- **Totals for:** UK tax years, calendar years, or dates you choose. Your dates start as the first and last transaction in your files.
+- **Show in:** the currency to convert into. It starts as the currency you withdraw to most often, so someone in Germany who withdraws euros sees euros. HMRC's figures only appear for pounds.
 
 Everything runs in the browser. Files are read in memory and never uploaded or saved. There is no server and no tracking. On Cloudflare Pages, `public/_headers` sets a security policy that blocks the page from making any network requests at all.
 
@@ -28,16 +33,16 @@ npm run update-rates   # fetch the latest HMRC monthly rates
 - Build command: `npm run build`
 - Output folder: `dist`
 
-## The two pounds figures
+## The two converted figures
 
 The tool does not say which one to report. That is for you, HMRC or an accountant.
 
 ### What PayPal gave you
 
-PayPal converts foreign currency when you withdraw or spend it, not when you are paid. So for each tax year and currency, the tool adds up all the foreign currency PayPal converted and all the pounds it gave back. That gives PayPal's average rate for the year (its conversion charge included), which is applied to that year's earnings.
+PayPal converts foreign currency when you withdraw or spend it, not when you are paid. So for each period (tax year, calendar year or your dates) and currency, the tool adds up all the foreign currency PayPal converted into your chosen currency and everything it gave back. That gives PayPal's average rate for the period (its conversion charge included), which is applied to that period's earnings. This works in any currency.
 
-- Payments already in pounds are counted as they are.
-- If a year has earnings in a currency but PayPal converted none of it that year, the tool says so and gives no estimate.
+- Payments already in your chosen currency are counted as they are.
+- If a period has earnings in a currency but PayPal converted none of it in that period, the tool says so and gives no estimate. Short custom date ranges hit this more often.
 
 ### At HMRC's rates
 
@@ -50,12 +55,12 @@ Each payment is valued at the exchange rate HMRC publishes for the month it arri
 
 ## Known limits
 
-- **One PayPal layout.** PayPal has more than one CSV export. This reads the one with a `Description` column. Other layouts are refused with a clear message rather than guessed at. To add one, see `src/core/layouts.ts`.
+- **One PayPal layout, in English.** PayPal has more than one CSV export. This reads the one with a `Description` column. Other layouts are refused with a clear message rather than guessed at. To add one, see `src/core/layouts.ts`. Exports from a PayPal account set to another language have translated column names and transaction types, so they are refused too. Amounts written with a decimal comma (`1.234,56`) and day-first, month-first or year-first dates are all read.
 - **Money you refund to a payer is not taken off their total.**
 - No fees and no accounts.
 - HMRC's yearly average rates are not used, only the monthly ones.
-- UK only. Country rules (tax year start, home currency, date order) are in `src/settings.ts`.
-- A tax year the files only partly cover gets a plain "part year" or "so far" note saying where the count starts or stops. Only a gap between two files is shown as a warning. The dates come from PayPal's file name when present; otherwise from the first and last transaction, which can mistake a quiet spell for a gap.
+- Official exchange rates are HMRC's only, so they are shown only when converting into pounds. Other countries get the PayPal figure. Tax year presets are the UK's and calendar years; any other tax year can be done with "Dates you choose". Country rules (tax year start, default currency, date order, official rates) are in `src/settings.ts`.
+- A period the files only partly cover gets a plain "part year" or "so far" note saying where the count starts or stops. Only a gap between two files is shown as a warning. The dates come from PayPal's file name when present; otherwise from the first and last transaction, which can mistake a quiet spell for a gap.
 
 ## Layout of the code
 
