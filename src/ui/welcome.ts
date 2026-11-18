@@ -22,7 +22,7 @@ export const WELCOME = {
   /** What it is, in the words people search for. Shown under the name. */
   tagline: 'PayPal income calculator for Self Assessment',
   intro:
-    'Add up what you were paid through PayPal, for each tax year or for any dates you choose. ' +
+    'Drop in your PayPal statements and it adds up your earnings for you, for each tax year or for any dates you choose. ' +
     'Useful for freelancers and side income, and for checking figures before your Self Assessment.',
   youGet: [
     [{ strong: 'your earnings' }, ', in the currency you were paid in'],
