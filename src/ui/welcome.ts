@@ -19,7 +19,9 @@ const authority = settings.officialRates.name;
 
 export const WELCOME = {
   title: 'PayPal Income Calculator',
-  intro: 'Add up what you were paid through PayPal, for each tax year or for any dates you choose.',
+  intro:
+    'Add up what you were paid through PayPal, for each tax year or for any dates you choose. ' +
+    'Useful for freelancers and side income, and for checking figures before your Self Assessment.',
   youGet: [
     [{ strong: 'your earnings' }, ', in the currency you were paid in'],
     [`the same earnings in your own currency, at PayPal's rate (and at ${authority}'s, for pounds)`],
@@ -29,6 +31,9 @@ export const WELCOME = {
 };
 
 export const QUESTIONS_TITLE = 'Common questions';
+
+/** Shared by every question, so opening one closes whichever was open (no JavaScript needed). */
+export const QUESTION_GROUP = 'faq';
 
 export const QUESTIONS: Question[] = [
   {
@@ -55,6 +60,15 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
+    q: `Do I need to tell ${authority} about my PayPal income?`,
+    a: [
+      `It depends on your situation. ${authority} has a £1,000 trading allowance: if your total income from self-employment or side work is £1,000 or less in a tax year, before expenses, you may not need to tell ${authority} about it. ` +
+        "This calculator shows your earnings for each tax year so you can check. If you're over, or unsure, see ",
+      { text: `${authority}'s guidance on the trading allowance`, href: 'https://www.gov.uk/guidance/tax-free-allowances-on-property-and-trading-income' },
+      '.',
+    ],
+  },
+  {
     q: 'What is the UK tax year?',
     a: [
       'It runs from 6 April to 5 April the next year. The 2024-25 tax year, for example, is 6 April 2024 to 5 April 2025. ' +
@@ -66,6 +80,14 @@ export const QUESTIONS: Question[] = [
     a: [
       "If you were paid in another currency, there's more than one fair way to turn it into pounds. " +
         `One figure is the pounds PayPal actually gave you when it converted your money. The other values each payment at ${authority}'s official exchange rate for the month you were paid.`,
+    ],
+  },
+  {
+    q: 'How do I convert US dollars to pounds for my tax return?',
+    a: [
+      `Choose pounds under "Show in" on the results page. It's picked for you if you withdraw to a UK bank. ` +
+        `The calculator then shows your dollar earnings two ways: the pounds PayPal actually gave you, and their value at ${authority}'s exchange rate for each month you were paid. ` +
+        'Euros and other currencies work the same way.',
     ],
   },
   {
@@ -123,7 +145,7 @@ function inlineHtml(parts: Inline[]): string {
 /** The welcome page as an HTML string, for index.html. */
 export function welcomeHtml(): string {
   const items = WELCOME.youGet.map((li) => `<li>${inlineHtml(li)}</li>`).join('');
-  const questions = QUESTIONS.map((x) => `<details><summary>${escape(x.q)}</summary><p>${inlineHtml(x.a)}</p></details>`).join('');
+  const questions = QUESTIONS.map((x) => `<details name="${QUESTION_GROUP}"><summary>${escape(x.q)}</summary><p>${inlineHtml(x.a)}</p></details>`).join('');
   return (
     `<div class="wiz-body">` +
     `<div class="hero"><h1>${escape(WELCOME.title)}</h1><p>${escape(WELCOME.intro)}</p><p>You get:</p><ul>${items}</ul><p>${escape(WELCOME.privacy)}</p></div>` +

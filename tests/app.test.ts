@@ -287,7 +287,9 @@ describe('the wizard', () => {
     const drawn = document.querySelector('.wiz-body')!;
     expect(words(built.firstElementChild!)).toBe(words(drawn));
     expect(links(built)).toEqual(links(drawn));
-    expect(drawn.querySelectorAll('.faq details')).toHaveLength(11);
+    expect(drawn.querySelectorAll('.faq details')).toHaveLength(13);
+    // One group, so only one answer is open at a time, in both copies.
+    expect(new Set([...drawn.querySelectorAll('.faq details'), ...built.querySelectorAll('details')].map((d) => d.getAttribute('name')))).toEqual(new Set(['faq']));
     expect(readFileSync(resolve('index.html'), 'utf8')).toContain('<!-- welcome:');
   });
 

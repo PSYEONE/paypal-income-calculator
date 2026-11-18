@@ -11,7 +11,7 @@ import type { ParsedFile, Txn } from '../core/types';
 import { settings } from '../settings';
 import { h } from './dom';
 import { GUIDE_INTRO, GUIDE_STEPS, GUIDE_TIPS } from './guide';
-import { QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from './welcome';
+import { QUESTION_GROUP, QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from './welcome';
 
 /** The pages of the wizard, in order. The welcome page is not a numbered step. */
 const STEPS = [
@@ -370,7 +370,7 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
           'section',
           { class: 'faq' },
           h('h2', null, QUESTIONS_TITLE),
-          QUESTIONS.map((x) => h('details', null, h('summary', null, x.q), h('p', null, inline(x.a)))),
+          QUESTIONS.map((x) => h('details', { name: QUESTION_GROUP }, h('summary', null, x.q), h('p', null, inline(x.a)))),
         ),
       );
       foot.replaceChildren(spacer(), button('Get started', () => goTo('guide'), true));
