@@ -1,0 +1,10 @@
+// Cloudflare settings. The site is plain files: `npm run build` makes them in
+// dist/, and `npx wrangler deploy` uploads that folder. dist/_headers (copied
+// from public/_headers) sets the security headers.
+{
+  "name": "gig-income",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
