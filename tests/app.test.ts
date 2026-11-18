@@ -143,6 +143,25 @@ describe('the wizard', () => {
     app.goTo('earnings');
     expect(text()).toContain('Nothing is ticked yet');
     expect(text()).not.toContain('£1,664.25');
+    // Only ask for support once there is something to be thankful for.
+    expect(document.querySelector('.support')).toBeNull();
+  });
+
+  it('asks quietly for support under the results, with links that open in a new tab', () => {
+    app.goTo('files');
+    app.addTexts(samples());
+    app.goTo('payers');
+    tick('Fake Platform Inc');
+    app.goTo('earnings');
+    const card = document.querySelector('.support')!;
+    expect(card.textContent).toContain('Did this help?');
+    const links = [...card.querySelectorAll('a')];
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      'https://github.com/sponsors/PSYEONE',
+      'https://nowpayments.io/donation/psyeone',
+      'https://github.com/PSYEONE/paypal-income-calculator/issues/new',
+    ]);
+    expect(links.every((a) => a.target === '_blank' && a.rel.includes('noopener'))).toBe(true);
   });
 
   it('shows a clear error for an unknown layout and will not move on with it', () => {

@@ -124,6 +124,49 @@ function confirmButton(label: string, confirmLabel: string, action: () => void):
   return button;
 }
 
+/** Donation pages, the same ones interviewr-ai uses. */
+const SUPPORT_LINKS = [
+  { label: 'GitHub Sponsors', href: 'https://github.com/sponsors/PSYEONE' },
+  { label: 'Crypto', href: 'https://nowpayments.io/donation/psyeone' },
+];
+const FEEDBACK_URL = 'https://github.com/PSYEONE/paypal-income-calculator/issues/new';
+
+/** A small heart, drawn inline so the page needs nothing from outside. */
+function heart(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'heart');
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute(
+    'd',
+    'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
+  );
+  svg.append(path);
+  return svg;
+}
+
+/**
+ * A quiet ask under the results: donation links if it helped, a feedback link
+ * if it did not. It is part of the page, not a pop-up, and never gets in the way.
+ */
+function supportCard(): HTMLElement {
+  const link = (label: string, href: string, primary: boolean) =>
+    h('a', { class: primary ? 'btn primary' : 'btn', href, target: '_blank', rel: 'noopener noreferrer' }, label);
+  return h(
+    'div',
+    { class: 'support' },
+    heart(),
+    h('div', null,
+      h('strong', null, 'Did this help?'),
+      h('p', null, "This tool is free. If it saved you time, a donation would be greatly appreciated <3"),
+      h('div', { class: 'support-links' }, SUPPORT_LINKS.map((l) => link(l.label, l.href, true))),
+      h('p', { class: 'small' }, 'Something wrong or missing? ', h('a', { href: FEEDBACK_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Tell me on GitHub'), '.'),
+    ),
+  );
+}
+
 /** Today's date on this device, as "YYYY-MM-DD". */
 function todayIso(): string {
   const now = new Date();
@@ -458,6 +501,7 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
               h('strong', null, `${capital(homeWords)} PayPal gave you`),
               h('p', null, `The ${homeWords} that actually reached you, after PayPal's exchange fee. It is worked out from the currency conversions in your files.`),
             ),
+          blocks.length > 0 && supportCard(),
         ].filter((part) => part !== false && part !== null),
       );
     },
