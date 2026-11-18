@@ -1,4 +1,6 @@
-# PayPal Income Calculator
+# Gig Income
+
+Live at <https://gigincome.app>. Not connected to or endorsed by PayPal or HMRC.
 
 A small web page that adds up PayPal earnings and withdrawals per UK tax year (6 April to 5 April), per calendar year, or between any two dates you pick.
 

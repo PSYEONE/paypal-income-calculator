@@ -29,7 +29,7 @@ describe('the wizard', () => {
   });
 
   it('starts on the welcome page with one way forward', () => {
-    expect(text()).toContain('PayPal Income Calculator');
+    expect(text()).toContain('Gig Income');
     expect(document.querySelectorAll('button')).toHaveLength(1);
     expect(document.querySelector('input')).toBeNull();
   });

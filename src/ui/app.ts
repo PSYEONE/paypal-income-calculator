@@ -14,7 +14,7 @@ import { GUIDE_INTRO, GUIDE_STEPS, GUIDE_TIPS } from './guide';
 
 /** The pages of the wizard, in order. The welcome page is not a numbered step. */
 const STEPS = [
-  { id: 'welcome', title: 'PayPal Income Calculator' },
+  { id: 'welcome', title: 'Gig Income' },
   { id: 'guide', title: 'Get your files from PayPal' },
   { id: 'files', title: 'Add your PayPal files' },
   { id: 'payers', title: 'Tick who paid you for work' },
@@ -311,7 +311,7 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
         h(
           'div',
           { class: 'hero' },
-          h('h1', null, 'PayPal Income Calculator'),
+          h('h1', null, 'Gig Income'),
           h('p', null, 'Add up what you were paid through PayPal, for each tax year or for any dates you choose.'),
           h('p', null, 'You get:'),
           h(
