@@ -15,7 +15,7 @@ import { QUESTION_GROUP, QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from
 
 /** The pages of the wizard, in order. The welcome page is not a numbered step. */
 const STEPS = [
-  { id: 'welcome', title: 'PayPal Income Calculator' },
+  { id: 'welcome', title: 'Gig Income' },
   { id: 'guide', title: 'Get your files from PayPal' },
   { id: 'files', title: 'Add your PayPal files' },
   { id: 'payers', title: 'Tick who paid you for work' },
@@ -130,7 +130,26 @@ const SUPPORT_LINKS = [
   { label: 'GitHub Sponsors', href: 'https://github.com/sponsors/PSYEONE' },
   { label: 'Crypto', href: 'https://nowpayments.io/donation/psyeone' },
 ];
-const FEEDBACK_URL = 'https://github.com/PSYEONE/paypal-income-calculator/issues/new';
+// Two ways to get in touch, because most people do not have a GitHub account.
+const FEEDBACK_EMAIL = 'hello@gigincome.app';
+const FEEDBACK_ISSUES = 'https://github.com/PSYEONE/paypal-income-calculator/issues/new';
+
+/**
+ * "Email hello@gigincome.app or open an issue on GitHub", plus a reminder not
+ * to send the PayPal file itself, which is full of private financial details.
+ */
+function feedbackLine(lead: string, subject: string, instead: string): HTMLElement {
+  const mail = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}`;
+  return h(
+    'p',
+    { class: 'small feedback' },
+    `${lead} Email `,
+    h('a', { href: mail }, FEEDBACK_EMAIL),
+    ' or ',
+    h('a', { href: FEEDBACK_ISSUES, target: '_blank', rel: 'noopener noreferrer' }, 'open an issue on GitHub'),
+    `. Please don't attach your PayPal file. ${instead}`,
+  );
+}
 
 /** A small heart, drawn inline so the page needs nothing from outside. */
 function heart(): SVGSVGElement {
@@ -163,7 +182,7 @@ function supportCard(): HTMLElement {
       h('strong', null, 'Did this help?'),
       h('p', null, "This tool is free. If it saved you time, a donation would be greatly appreciated <3"),
       h('div', { class: 'support-links' }, SUPPORT_LINKS.map((l) => link(l.label, l.href, true))),
-      h('p', { class: 'small' }, 'Something wrong or missing? ', h('a', { href: FEEDBACK_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Tell me on GitHub'), '.'),
+      feedbackLine('Something wrong or missing?', 'Gig Income feedback', 'Just describe what happened.'),
     ),
   );
 }
@@ -360,7 +379,9 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
         h(
           'div',
           { class: 'hero' },
-          h('h1', null, WELCOME.title),
+          // The site's icon beside the name. Empty alt text: it is decoration, the name says it all.
+          h('h1', null, h('img', { class: 'logo', src: '/favicon.svg', alt: '', width: '40', height: '40' }), WELCOME.title),
+          h('p', { class: 'tagline' }, WELCOME.tagline),
           h('p', null, WELCOME.intro),
           h('p', null, 'You get:'),
           h('ul', null, WELCOME.youGet.map((li) => h('li', null, inline(li)))),
@@ -578,7 +599,13 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
 
     const items = [
       ...state.failures.map((f) =>
-        h('li', { class: 'file bad' }, h('div', { class: 'file-row' }, h('div', { class: 'file-info' }, fileName(f.fileName)), removeButton(f.fileName)), h('p', { class: 'error' }, f.error)),
+        h(
+          'li',
+          { class: 'file bad' },
+          h('div', { class: 'file-row' }, h('div', { class: 'file-info' }, fileName(f.fileName)), removeButton(f.fileName)),
+          h('p', { class: 'error' }, f.error),
+          feedbackLine('Think this file should work?', 'A PayPal file would not load', 'Describe the problem or copy the message above instead.'),
+        ),
       ),
       ...state.files.map((f) => {
         const range = ranges.get(f.fileName);

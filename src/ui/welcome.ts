@@ -18,7 +18,9 @@ export interface Question {
 const authority = settings.officialRates.name;
 
 export const WELCOME = {
-  title: 'PayPal Income Calculator',
+  title: 'Gig Income',
+  /** What it is, in the words people search for. Shown under the name. */
+  tagline: 'PayPal income calculator for Self Assessment',
   intro:
     'Add up what you were paid through PayPal, for each tax year or for any dates you choose. ' +
     'Useful for freelancers and side income, and for checking figures before your Self Assessment.',
@@ -148,7 +150,7 @@ export function welcomeHtml(): string {
   const questions = QUESTIONS.map((x) => `<details name="${QUESTION_GROUP}"><summary>${escape(x.q)}</summary><p>${inlineHtml(x.a)}</p></details>`).join('');
   return (
     `<div class="wiz-body">` +
-    `<div class="hero"><h1>${escape(WELCOME.title)}</h1><p>${escape(WELCOME.intro)}</p><p>You get:</p><ul>${items}</ul><p>${escape(WELCOME.privacy)}</p></div>` +
+    `<div class="hero"><h1><img class="logo" src="/favicon.svg" alt="" width="40" height="40">${escape(WELCOME.title)}</h1><p class="tagline">${escape(WELCOME.tagline)}</p><p>${escape(WELCOME.intro)}</p><p>You get:</p><ul>${items}</ul><p>${escape(WELCOME.privacy)}</p></div>` +
     `<section class="faq"><h2>${escape(QUESTIONS_TITLE)}</h2>${questions}</section>` +
     `</div>`
   );

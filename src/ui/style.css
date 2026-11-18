@@ -159,44 +159,52 @@ footer {
   font-size: 0.8125rem;
 }
 
-/* The GitHub link: in the page's bottom-right corner, outside the window.
-   On smaller screens the window fills the page, so it sits at the right end
-   of the footer line instead, where it covers nothing. */
-.source-link {
+/* Email and GitHub links: in the page's bottom-right corner, outside the window.
+   On smaller screens the window fills the page, so they sit at the right end
+   of the footer line instead, where they cover nothing. */
+.corner-links {
   position: fixed;
   right: 2rem;
   bottom: 0.25rem;
   z-index: 1;
   display: flex;
+  gap: 0.25rem;
+}
+
+.corner-link {
+  display: flex;
   padding: 0.25rem;
   color: var(--dim);
 }
 
-.source-link svg {
+.corner-link svg {
   width: 1.125rem;
   height: 1.125rem;
+  /* Never trim the edge of an icon when its size lands between two pixels. */
+  overflow: visible;
 }
 
-.source-link:hover {
+.corner-link:hover {
   color: var(--fg);
 }
 
-.source-link:focus-visible {
+.corner-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
 footer {
-  padding-right: 4rem;
+  padding-right: 5.5rem;
 }
 
 @media (min-width: 68rem) {
-  .source-link {
+  .corner-links {
     right: 1.25rem;
     bottom: 1.25rem;
+    gap: 0.5rem;
   }
 
-  .source-link svg {
+  .corner-link svg {
     width: 1.5rem;
     height: 1.5rem;
   }
@@ -214,12 +222,34 @@ footer {
 }
 
 .hero h1 {
-  margin: 0 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  margin: 0 0 0.5rem;
   font-size: 2.5rem;
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.03em;
   text-align: center;
+}
+
+/* The bar-chart icon, the height of the capital letters' line. */
+.hero h1 .logo {
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+}
+
+/* "PayPal income calculator for Self Assessment" under the name. */
+.hero .tagline {
+  margin: 0 0 2rem;
+  color: var(--fg);
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-align: center;
+  /* On a narrow screen, split it into two even lines, not one long and one short. */
+  text-wrap: balance;
 }
 
 .hero p,
@@ -399,7 +429,7 @@ h3 {
 }
 
 .guide a,
-.support p a {
+.feedback a {
   color: var(--accent);
   font-weight: 500;
 }
@@ -1015,10 +1045,10 @@ input[type='checkbox']:focus-visible {
   }
 
   footer {
-    padding-inline: 1rem 3rem;
+    padding-inline: 1rem 4.5rem;
   }
 
-  .source-link {
+  .corner-links {
     right: 0.75rem;
   }
 

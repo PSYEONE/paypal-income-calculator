@@ -32,7 +32,8 @@ describe('the wizard', () => {
   });
 
   it('starts on the welcome page with one way forward', () => {
-    expect(text()).toContain('PayPal Income Calculator');
+    expect(text()).toContain('Gig Income');
+    expect(text()).toContain('PayPal income calculator for Self Assessment');
     expect(document.querySelectorAll('button')).toHaveLength(1);
     expect(document.querySelector('input')).toBeNull();
   });
@@ -162,15 +163,20 @@ describe('the wizard', () => {
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
       'https://github.com/sponsors/PSYEONE',
       'https://nowpayments.io/donation/psyeone',
+      'mailto:hello@gigincome.app?subject=Gig%20Income%20feedback',
       'https://github.com/PSYEONE/paypal-income-calculator/issues/new',
     ]);
-    expect(links.every((a) => a.target === '_blank' && a.rel.includes('noopener'))).toBe(true);
+    expect(links.filter((a) => a.href.startsWith('https:')).every((a) => a.target === '_blank' && a.rel.includes('noopener'))).toBe(true);
   });
 
   it('shows a clear error for an unknown layout and will not move on with it', () => {
     app.goTo('files');
     app.addTexts([{ name: 'other.csv', text: fixtureText('other-layout.csv') }]);
     expect(text()).toContain('not in a PayPal layout this tool can read');
+    // The people whose file fails are the ones who most need a way to ask for help, without a GitHub account.
+    const help = document.querySelector('.file.bad .feedback')!;
+    expect(help.querySelector('a[href^="mailto:hello@gigincome.app"]')).not.toBeNull();
+    expect(help.textContent).toContain("Please don't attach your PayPal file");
     expect(findButton('Next').disabled).toBe(true);
   });
 
