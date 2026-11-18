@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createApp } from '../src/ui/app';
+import { welcomeHtml } from '../src/ui/welcome';
 import { fixtureText } from './helpers';
 
 const text = () => document.body.textContent ?? '';
@@ -278,11 +279,16 @@ describe('the wizard', () => {
     });
   });
 
-  it('matches the plain-HTML copy of the welcome page that search engines read', () => {
-    const html = readFileSync(resolve('index.html'), 'utf8');
-    const words = (t: string) => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const staticHero = words(/<div class="hero">([\s\S]*?)<\/div>/.exec(html)![1]);
-    expect(staticHero).toBe(words(document.querySelector('.hero')!.innerHTML));
+  it('draws the same welcome page and questions that the build writes into the HTML for search engines', () => {
+    const words = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const links = (el: Element) => [...el.querySelectorAll('a')].map((l) => [l.textContent, l.getAttribute('href'), l.getAttribute('target')]);
+    const built = document.createElement('div');
+    built.innerHTML = welcomeHtml();
+    const drawn = document.querySelector('.wiz-body')!;
+    expect(words(built.firstElementChild!)).toBe(words(drawn));
+    expect(links(built)).toEqual(links(drawn));
+    expect(drawn.querySelectorAll('.faq details')).toHaveLength(11);
+    expect(readFileSync(resolve('index.html'), 'utf8')).toContain('<!-- welcome:');
   });
 
   it('never turns file contents into markup', () => {

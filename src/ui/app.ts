@@ -11,6 +11,7 @@ import type { ParsedFile, Txn } from '../core/types';
 import { settings } from '../settings';
 import { h } from './dom';
 import { GUIDE_INTRO, GUIDE_STEPS, GUIDE_TIPS } from './guide';
+import { QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from './welcome';
 
 /** The pages of the wizard, in order. The welcome page is not a numbered step. */
 const STEPS = [
@@ -350,21 +351,26 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
 
   const pages: Record<StepId, () => void> = {
     welcome() {
+      // The same words are written into index.html by the build; see src/ui/welcome.ts.
+      const inline = (parts: Inline[]) =>
+        parts.map((p) =>
+          typeof p === 'string' ? p : 'strong' in p ? h('strong', null, p.strong) : h('a', { href: p.href, target: '_blank', rel: 'noopener noreferrer' }, p.text),
+        );
       body.replaceChildren(
         h(
           'div',
           { class: 'hero' },
-          h('h1', null, 'PayPal Income Calculator'),
-          h('p', null, 'Add up what you were paid through PayPal, for each tax year or for any dates you choose.'),
+          h('h1', null, WELCOME.title),
+          h('p', null, WELCOME.intro),
           h('p', null, 'You get:'),
-          h(
-            'ul',
-            null,
-            h('li', null, h('strong', null, 'your earnings'), ', in the currency you were paid in'),
-            h('li', null, `the same earnings in your own currency, at PayPal's rate (and at ${settings.officialRates.name}'s, for pounds)`),
-            h('li', null, 'what you withdrew to your card or bank, to check against your statement'),
-          ),
-          h('p', null, 'Your files are read on this device only. Nothing is uploaded, sent or saved anywhere.'),
+          h('ul', null, WELCOME.youGet.map((li) => h('li', null, inline(li)))),
+          h('p', null, WELCOME.privacy),
+        ),
+        h(
+          'section',
+          { class: 'faq' },
+          h('h2', null, QUESTIONS_TITLE),
+          QUESTIONS.map((x) => h('details', null, h('summary', null, x.q), h('p', null, inline(x.a)))),
         ),
       );
       foot.replaceChildren(spacer(), button('Get started', () => goTo('guide'), true));

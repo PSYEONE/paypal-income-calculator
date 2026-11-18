@@ -25,22 +25,8 @@
   <body>
     <div class="shell">
       <main id="app">
-        <!-- The welcome page as plain HTML, so search engines see real text without
-             running JavaScript. The app replaces it as soon as it loads. Keep it
-             in step with the welcome page in src/ui/app.ts (a test checks). -->
-        <div class="wiz-body">
-          <div class="hero">
-            <h1>PayPal Income Calculator</h1>
-            <p>Add up what you were paid through PayPal, for each tax year or for any dates you choose.</p>
-            <p>You get:</p>
-            <ul>
-              <li><strong>your earnings</strong>, in the currency you were paid in</li>
-              <li>the same earnings in your own currency, at PayPal's rate (and at HMRC's, for pounds)</li>
-              <li>what you withdrew to your card or bank, to check against your statement</li>
-            </ul>
-            <p>Your files are read on this device only. Nothing is uploaded, sent or saved anywhere.</p>
-          </div>
-        </div>
+        <!-- welcome: the build puts the welcome page and common questions here as plain
+             HTML, so search engines can read them. Edit them in src/ui/welcome.ts. -->
       </main>
       <footer>A calculator, not tax advice. Your files never leave this device. Not connected to PayPal or HMRC.</footer>
     </div>

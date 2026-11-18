@@ -70,7 +70,7 @@ Each payment is valued at the exchange rate HMRC publishes for the month it arri
 - `src/settings.ts`: country rules.
 - `src/data/`: HMRC's rates. `scripts/`: the script that refreshes them.
 - `src/core/`: reading files and doing the sums. Plain functions, no browser code.
-- `src/ui/`: the page, a step-by-step wizard. The "how to get your files from PayPal" steps are in `src/ui/guide.ts`.
+- `src/ui/`: the page, a step-by-step wizard. The "how to get your files from PayPal" steps are in `src/ui/guide.ts`. The welcome text and the common questions are in `src/ui/welcome.ts`; the build also writes them into `index.html` as plain HTML so search engines can read them.
 - `tests/`: tests, with made-up sample exports in `tests/fixtures/`.
 
 ## Licence

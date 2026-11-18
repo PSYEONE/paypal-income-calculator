@@ -3,7 +3,7 @@
 import type { RateTable } from './core/officialRates';
 import type { YearStart } from './core/periods';
 import type { ReportOptions } from './core/summary';
-import hmrcMonthly from './data/hmrc-monthly-rates.json';
+import hmrcMonthly from './data/hmrc-monthly-rates.json' with { type: 'json' };
 
 export type DateOrder = 'DMY' | 'MDY' | 'YMD';
 
