@@ -159,6 +159,53 @@ footer {
   font-size: 0.8125rem;
 }
 
+/* The GitHub link: in the page's bottom-right corner, outside the window.
+   On smaller screens the window fills the page, so it sits at the right end
+   of the footer line instead, where it covers nothing. */
+.source-link {
+  position: fixed;
+  right: 2rem;
+  bottom: 0.25rem;
+  z-index: 1;
+  display: flex;
+  padding: 0.25rem;
+  color: var(--dim);
+}
+
+.source-link svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.source-link:hover {
+  color: var(--fg);
+}
+
+.source-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+footer {
+  padding-right: 4rem;
+}
+
+@media (min-width: 68rem) {
+  .source-link {
+    right: 1.25rem;
+    bottom: 1.25rem;
+  }
+
+  .source-link svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  footer {
+    padding-right: 2rem;
+  }
+}
+
 /* Welcome page */
 .hero {
   max-width: 34rem;
@@ -825,7 +872,11 @@ input[type='checkbox']:focus-visible {
   }
 
   footer {
-    padding-inline: 1rem;
+    padding-inline: 1rem 3rem;
+  }
+
+  .source-link {
+    right: 0.75rem;
   }
 
   .hero h1 {

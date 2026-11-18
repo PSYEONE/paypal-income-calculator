@@ -73,6 +73,12 @@ Each payment is valued at the exchange rate HMRC publishes for the month it arri
 - `src/ui/`: the page, a step-by-step wizard. The "how to get your files from PayPal" steps are in `src/ui/guide.ts`.
 - `tests/`: tests, with made-up sample exports in `tests/fixtures/`.
 
+## Licence
+
+Copyright (C) 2026 PSYEONE. Free software under the GNU Affero General Public License, version 3 only (AGPL-3.0). See `LICENSE`.
+
+You can use, change and share it. If you run a changed copy as a website, you must publish your changed code under the same licence.
+
 ## Real data
 
 Put real exports in `private/`. That folder is in `.gitignore` and must never be committed. If it holds CSV files, `npm test` also checks they can be read (it prints nothing from them).
