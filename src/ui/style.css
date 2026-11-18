@@ -122,6 +122,10 @@ body {
   min-height: 0;
   overflow-y: auto;
   padding: 1.5rem 2rem 2rem;
+  /* Fade out the bottom edge, so text that runs past it fades instead of being
+     sliced through, and hints there is more to scroll to. The fade is no taller
+     than the bottom padding, so nothing is faded once you reach the end. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
 }
 
 .wiz-foot {
