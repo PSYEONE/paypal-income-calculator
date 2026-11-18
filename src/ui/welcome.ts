@@ -7,7 +7,7 @@
 
 import { settings } from '../settings.ts';
 
-/** A run of text: plain, bold, or a link that opens in a new tab. */
+/** A run of text: plain, bold, or a link. Links to other sites open in a new tab; links to this site (starting with /) don't. */
 export type Inline = string | { strong: string } | { text: string; href: string };
 
 export interface Question {
@@ -125,12 +125,17 @@ export const QUESTIONS: Question[] = [
     q: 'How do I get my PayPal statement as a CSV file?',
     a: [
       'Log in to PayPal and go to paypal.com/reports. Choose "Statements - monthly and custom", click Create Report, set the format to CSV and pick your dates. ' +
-        'When the report says Ready, download it. The calculator walks you through each step with pictures.',
+        'When the report says Ready, download it. The calculator walks you through each step with pictures. See the ',
+      { text: 'step-by-step guide', href: '/paypal-csv' },
+      '.',
     ],
   },
 ];
 
 const LINK_ATTRS = 'target="_blank" rel="noopener noreferrer"';
+
+/** True for a link to a page on this site, which opens in the same tab. */
+export const isOwnPage = (href: string) => href.startsWith('/');
 
 function escape(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -139,7 +144,7 @@ function escape(text: string): string {
 function inlineHtml(parts: Inline[]): string {
   return parts
     .map((p) =>
-      typeof p === 'string' ? escape(p) : 'strong' in p ? `<strong>${escape(p.strong)}</strong>` : `<a href="${escape(p.href)}" ${LINK_ATTRS}>${escape(p.text)}</a>`,
+      typeof p === 'string' ? escape(p) : 'strong' in p ? `<strong>${escape(p.strong)}</strong>` : `<a href="${escape(p.href)}"${isOwnPage(p.href) ? '' : ` ${LINK_ATTRS}`}>${escape(p.text)}</a>`,
     )
     .join('');
 }

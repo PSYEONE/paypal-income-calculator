@@ -11,7 +11,7 @@ import type { ParsedFile, Txn } from '../core/types';
 import { settings } from '../settings';
 import { h } from './dom';
 import { GUIDE_INTRO, GUIDE_STEPS, GUIDE_TIPS } from './guide';
-import { QUESTION_GROUP, QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from './welcome';
+import { isOwnPage, QUESTION_GROUP, QUESTIONS, QUESTIONS_TITLE, WELCOME, type Inline } from './welcome';
 
 /** The pages of the wizard, in order. The welcome page is not a numbered step. */
 const STEPS = [
@@ -373,7 +373,7 @@ export function createApp(root: HTMLElement, today: string = todayIso()) {
       // The same words are written into index.html by the build; see src/ui/welcome.ts.
       const inline = (parts: Inline[]) =>
         parts.map((p) =>
-          typeof p === 'string' ? p : 'strong' in p ? h('strong', null, p.strong) : h('a', { href: p.href, target: '_blank', rel: 'noopener noreferrer' }, p.text),
+          typeof p === 'string' ? p : 'strong' in p ? h('strong', null, p.strong) : h('a', isOwnPage(p.href) ? { href: p.href } : { href: p.href, target: '_blank', rel: 'noopener noreferrer' }, p.text),
         );
       body.replaceChildren(
         h(
