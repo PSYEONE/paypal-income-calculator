@@ -53,7 +53,8 @@ Each payment is valued at the exchange rate HMRC publishes for the month it arri
 - The rates are HMRC's monthly exchange rates from <https://www.trade-tariff.service.gov.uk/exchange_rates>, for the currencies a PayPal balance can hold.
 - They are stored in `src/data/hmrc-monthly-rates.json` and built into the site, so the page still makes no network requests.
 - They start at January 2021, the earliest month that HMRC service offers.
-- **They go stale.** Run `npm run update-rates` each month, then rebuild and redeploy. A payment in a month with no stored rate gets "No figure" rather than a guess.
+- **They update themselves.** Every Monday a GitHub Action (`.github/workflows/update-rates.yml`) downloads HMRC's rates. If there are new months, it checks none of the old ones went missing (`scripts/check-rates-kept.mjs`), runs the tests and build, and commits the new file to `main`, which redeploys the site. If a run fails, GitHub emails you and nothing is committed. You can also run it by hand from the Actions tab, or locally with `npm run update-rates`.
+- A payment in a month with no stored rate gets "No figure" rather than a guess.
 
 ## Known limits
 
